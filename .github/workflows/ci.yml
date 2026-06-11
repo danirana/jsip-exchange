@@ -1,0 +1,78 @@
+name: CI
+
+# Build the project and run the test suite on every push and pull request.
+#
+# This project builds with the OxCaml compiler (ocaml-variants.5.2.0+ox),
+# which lives in Jane Street's public OxCaml opam repository rather than the
+# default opam repository. We layer that repo on top of the default one, just
+# like the official local install:
+#
+#   opam switch create 5.2.0+ox --repos ox=git+https://github.com/oxcaml/opam-repository.git,default
+#
+# This workflow file travels with forks automatically. Note, however, that
+# GitHub disables Actions on a newly-created fork by default. The first time
+# you push to your fork, open the "Actions" tab and click
+# "I understand my workflows, go ahead and enable them" to turn CI on. This is
+# a one-time, per-fork step that the upstream repo cannot do for you.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# Cancel an in-progress run if a newer commit is pushed to the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # OxCaml currently supports x86_64/ARM64 glibc Linux and ARM64 macOS.
+        # ubuntu-latest (x86_64 glibc Linux) is supported.
+        os:
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    # The first run builds the OxCaml compiler from source and installs the
+    # full Jane Street dependency tree, which is slow. setup-ocaml caches the
+    # opam switch, so later runs are much faster. Give the first run headroom.
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up the OxCaml compiler
+        uses: ocaml/setup-ocaml@v3
+        with:
+          # Must be the full variant package name: setup-ocaml only resolves
+          # bare semver ranges (e.g. "5.2") against the default opam repo,
+          # which does not contain the +ox variant.
+          ocaml-compiler: ocaml-variants.5.2.0+ox
+          # First listed wins on conflicts; the OxCaml repo overlays the
+          # default repo with +ox-patched packages and the OxCaml-only
+          # libraries (e.g. bonsai_term).
+          opam-repositories: |
+            ox: git+https://github.com/oxcaml/opam-repository.git
+            default: git+https://github.com/ocaml/opam-repository.git
+
+      - name: Install dependencies
+        run: opam install . --deps-only --with-test
+
+      - name: Build
+        run: opam exec -- dune build
+
+      - name: Run tests
+        run: opam exec -- dune runtest
+
+      # Runs last so build/test results are always visible even if formatting
+      # is off. `dune build @fmt` only checks formatting (it does not rewrite
+      # files); locally, `dune fmt` reformats in place. The ocamlformat version
+      # is pinned via the opam dependency and .ocamlformat, so this uses the
+      # same formatter students run.
+      - name: Check formatting
+        run: opam exec -- dune build @fmt

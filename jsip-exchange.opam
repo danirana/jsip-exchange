@@ -4,18 +4,27 @@ synopsis: "An project building a financial exchange in OCaml"
 maintainer: ["JSIP Organizers"]
 authors: ["JSIP Organizers"]
 license: "MIT"
-homepage: "https://example.com"
-bug-reports: "https://example.com/issues"
+homepage: "https://github.com/jane-street-immersion-program/jsip-exchange/"
+bug-reports:
+  "https://github.com/jane-street-immersion-program/jsip-exchange/issues"
 depends: [
   "ocaml" {>= "5.2.0"}
   "dune" {>= "3.0"}
   "ocaml-lsp-server"
-  "ocamlformat"
+  "ocamlformat" {= "0.26.2+ox1"}
   "odoc" {with-doc}
   "async"
+  "async_log"
   "core"
+  "core_unix"
   "core_bench"
+  "bonsai_term"
+  "bonsai_term_components"
   "ppx_jane"
+  "bin_prot" {with-test}
+  "notty-community" {with-test}
+  "expect_test_helpers_core" {with-test}
+  "expect_test_helpers_async" {with-test}
 ]
 build: [
   ["dune" "subst"] {dev}

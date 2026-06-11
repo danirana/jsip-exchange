@@ -2,15 +2,14 @@
 
 (generate_opam_files true)
 
-;; CR-soon abauer: update homepage and bug_reports to point to the right github page
-
 (maintainers "JSIP Organizers")
 
 (authors "JSIP Organizers")
 
-(homepage "https://example.com")
+(homepage "https://github.com/jane-street-immersion-program/jsip-exchange/")
 
-(bug_reports "https://example.com/issues")
+(bug_reports
+ "https://github.com/jane-street-immersion-program/jsip-exchange/issues")
 
 (license MIT)
 
@@ -25,6 +24,14 @@
   ocamlformat
   (odoc :with-doc)
   async
+  async_log
   core
+  core_unix
   core_bench
-  ppx_jane))
+  bonsai_term
+  bonsai_term_components
+  ppx_jane
+  (bin_prot :with-test)
+  (notty-community :with-test)
+  (expect_test_helpers_core :with-test)
+  (expect_test_helpers_async :with-test)))
