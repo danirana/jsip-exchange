@@ -53,7 +53,7 @@ let%expect_test "create: remaining_size starts equal to size" =
 
 let%expect_test "create: rejects non-positive size" =
   require_does_raise (fun () -> make_order ~size:0 ());
-  [%expect {| ("Order.creat: size must be positive" (req.size 0)) |}];
+  [%expect {| ("Order.create: size must be positive" (req.size 0)) |}];
   require_does_raise (fun () -> make_order ~size:(-5) ());
   [%expect {| ("Order.create: size must be positive" (req.size -5)) |}]
 ;;
