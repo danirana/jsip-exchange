@@ -96,3 +96,4 @@ let%expect_test "is_fully_filled: true only when remaining = 0" =
   Order.fill order ~by:(Size.of_int 50);
   [%test_result: bool] (Order.is_fully_filled order) ~expect:true
 ;;
+

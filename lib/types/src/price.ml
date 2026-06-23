@@ -28,20 +28,6 @@ let ( + ) = Int.( + )
 let ( - ) = Int.( - )
 let ( * ) price qty = price * qty
 
-let is_more_aggressive side ~price ~than =
-  ignore side;
-  ignore price;
-  ignore than;
-  failwith "TODO: implement Price.is_more_aggressive"
-;;
-
-let is_marketable side ~price ~resting_price =
-  ignore side;
-  ignore price;
-  ignore resting_price;
-  failwith "TODO: implement Price.is_marketable"
-;;
-
 let to_string_dollar t =
   let is_negative = t < 0 in
   let t_abs = Int.abs t in
@@ -55,4 +41,16 @@ let to_string = to_string_dollar
 let of_string s =
   let s = String.chop_prefix_if_exists s ~prefix:"$" in
   of_float_exn (Float.of_string s)
+;;
+
+let is_more_aggressive side ~price ~than =
+  match side with 
+  |Side.Buy -> price > than 
+  |Sell -> price < than
+;;
+
+let is_marketable side ~price ~resting_price =
+  match side with
+  | Side.Buy -> price >= resting_price
+  | Side.Sell -> price <= resting_price
 ;;

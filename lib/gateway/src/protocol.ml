@@ -7,6 +7,7 @@ open Jsip_types
 let default_participant = Participant.of_string "anonymous"
 
 let parse_command line =
+  (* Strips whitespace and splits the line *)
   let line = String.strip line in
   if String.is_empty line
   then Error "empty command"
@@ -18,6 +19,7 @@ let parse_command line =
     | [] -> Error "empty command"
     | side_str :: rest ->
       let open Result.Let_syntax in
+      (* evaluates the first word to check if it is Buy or Sell*)
       let%bind side =
         match String.uppercase side_str with
         | "BUY" -> Ok Side.Buy
@@ -25,6 +27,7 @@ let parse_command line =
         | other ->
           Error [%string "unknown command: %{other} (expected BUY or SELL)"]
       in
+      (* expects the next three parts to be symbol, size, and price *)
       (match rest with
        | symbol_str :: size_str :: price_str :: rest ->
          let%bind size =
@@ -48,6 +51,7 @@ let parse_command line =
                [%string
                  "invalid symbol: %{symbol_str}\nexception: %{exn_str}"]
          in
+         (* extract time-in-force *)
          let%bind time_in_force, rest =
            match rest with
            | tif_str :: rest' ->
@@ -61,6 +65,7 @@ let parse_command line =
                     "unknown time-in-force: %{tif_str} (expected DAY or IOC)"])
            | [] -> Ok (Day, [])
          in
+         (* assigns participant*)
          let%bind participant =
            match rest with
            | "as" :: name :: _ | "AS" :: name :: _ ->
@@ -70,6 +75,7 @@ let parse_command line =
              let trailing = String.concat ~sep:" " rest in
              Error [%string "unexpected trailing arguments: %{trailing}"]
          in
+         (* returns the result into Order.Request.t *)
          Ok
            ({ symbol
             ; participant
