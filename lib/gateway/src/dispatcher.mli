@@ -19,6 +19,14 @@ open Jsip_types
 
 type t
 
+val clean_up_session : t -> Session.t -> unit Deferred.t
+
+val set_up_session : t -> Participant.t -> unit Deferred.t
+
+val sessions : t -> Session.t Participant.Table.t 
+
+val push_to_session : t -> Participant.t -> Exchange_event.t -> unit
+
 (** Create a dispatcher.
 
     Events whose audience is a single participant (order-lifecycle responses

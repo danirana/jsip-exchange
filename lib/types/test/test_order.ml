@@ -9,6 +9,7 @@ let make_request
   ?(price_cents = 15000)
   ?(size = 100)
   ?(time_in_force = Time_in_force.Day)
+  ?(client_order_id = Client_order_id.of_int 1)
   ()
   : Order.Request.t
   =
@@ -18,6 +19,7 @@ let make_request
   ; price = Price.of_int_cents price_cents
   ; size = Size.of_int size
   ; time_in_force
+  ; client_order_id
   }
 ;;
 

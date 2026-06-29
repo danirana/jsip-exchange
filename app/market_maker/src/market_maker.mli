@@ -26,6 +26,7 @@ module Config : sig
     ; num_levels : int
     (** Number of price levels on each side. The bot places orders at
         [fair_value +/- spread], [fair_value +/- (spread + tick)], etc. *)
+    ; client_order_id : Client_order_id.t
     }
   [@@deriving sexp_of]
 end
@@ -37,3 +38,5 @@ end
     matching-engine response (acceptance, fills, rejection) arrives on the
     participant's session feed. *)
 val seed_book : Config.t -> Rpc.Connection.t -> unit Deferred.t
+
+val run : Config.t -> Rpc.Connection.t -> unit Deferred.t

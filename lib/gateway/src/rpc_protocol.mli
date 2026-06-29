@@ -11,6 +11,12 @@ open! Core
 open! Async
 open Jsip_types
 
+val login_rpc : (string, Participant.t Or_error.t) Rpc.Rpc.t
+
+val session_feed_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t 
+
+val cancel_order_rpc : (Client_order_id.t, unit Or_error.t) Rpc.Rpc.t
+
 (** Submit an order to the exchange.
 
     This is a one-way RPC. The server enqueues the order and returns as soon
@@ -50,3 +56,4 @@ val market_data_rpc
     production exchange would gate this RPC behind operator-level
     credentials; this simulator does not, but the same intent applies. *)
 val audit_log_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
+

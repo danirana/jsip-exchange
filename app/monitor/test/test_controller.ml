@@ -65,8 +65,8 @@ let%expect_test "feeding sample events populates the display" =
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100
@@ -120,7 +120,7 @@ let%expect_test "pressing 1 toggles the order-lifecycle category off and \
     Categories: (1 order-lifecycle)  [2 trade]  [3 market-data]
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100
     ──────────────────────────────────────────────────────────────────────
@@ -132,8 +132,8 @@ let%expect_test "pressing 1 toggles the order-lifecycle category off and \
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100
@@ -155,7 +155,7 @@ let%expect_test "pressing 2 toggles trade; 3 toggles market-data" =
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     ──────────────────────────────────────────────────────────────────────
     Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
@@ -194,8 +194,8 @@ let%expect_test "pressing / enters editing mode with empty buffer" =
     [editing substring]
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100
@@ -217,7 +217,7 @@ let%expect_test "typing in edit mode appends to the buffer" =
     Substring:  fill_  (editing)
     [editing substring]
     ──────────────────────────────────────────────────────────────────────
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
     ──────────────────────────────────────────────────────────────────────
     Footer:      Enter=commit  ESC=cancel  Backspace=delete  (other keys append)
     |}]
@@ -236,7 +236,7 @@ let%expect_test "Enter commits the substring filter and returns to browsing" =
     Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
     Substring:  fill
     ──────────────────────────────────────────────────────────────────────
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
     ──────────────────────────────────────────────────────────────────────
     Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
     |}]
@@ -256,8 +256,8 @@ let%expect_test "Escape cancels edit mode and reverts the buffer" =
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100
@@ -281,7 +281,7 @@ let%expect_test "Backspace in edit mode pops the last character" =
     Substring:  fi_  (editing)
     [editing substring]
     ──────────────────────────────────────────────────────────────────────
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
     ──────────────────────────────────────────────────────────────────────
     Footer:      Enter=commit  ESC=cancel  Backspace=delete  (other keys append)
     |}]
@@ -308,7 +308,7 @@ let%expect_test "pressing r clears every filter back to defaults" =
     Categories: (1 order-lifecycle)  [2 trade]  [3 market-data]
     Substring:  fill
     ──────────────────────────────────────────────────────────────────────
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
     ──────────────────────────────────────────────────────────────────────
     Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
     ----- after r -----
@@ -318,8 +318,8 @@ let%expect_test "pressing r clears every filter back to defaults" =
     Substring:  (empty)
     ──────────────────────────────────────────────────────────────────────
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=2)
+    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER cid=1
     REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x100 ask=$150.10 x200
     TRADE AAPL $150.00 x100

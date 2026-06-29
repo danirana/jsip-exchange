@@ -11,6 +11,12 @@ type t =
   ; port : int
   }
 
+module Connection_state = struct
+  type t = { mutable session : Session.t option }
+
+  let participant t = Option.map t.session ~f:Session.participant
+end
+
 (* Bound how many client requests can sit in the queue waiting for the
    matching engine. Once the queue is full, [Pipe.write] returns a pending
    deferred and the [submit_order_rpc] handler blocks until the engine has
@@ -42,8 +48,23 @@ let start ~symbols ~port () =
         [ Rpc.Rpc.implement
             Rpc_protocol.submit_order_rpc
             (fun state request ->
-               ignore state;
-               handle_submit ~request_writer request)
+               match Connection_state.participant state with
+               | None -> return (Or_error.error_string "Not logged in")
+               | Some new_participant ->
+                 let new_request =
+                   { request with
+                     Order.Request.participant = new_participant
+                   }
+                 in
+                 handle_submit ~request_writer new_request)
+        ; Rpc.Pipe_rpc.implement
+            Rpc_protocol.session_feed_rpc
+            (fun state () ->
+               match state.Connection_state.session with
+               | None -> return (Error (Error.of_string "not logged in"))
+               | Some session ->
+                 let reader = Session.reader session in
+                 return (Ok reader))
         ; Rpc.Rpc.implement' Rpc_protocol.book_query_rpc (fun state symbol ->
             ignore state;
             Matching_engine.book engine symbol
@@ -60,6 +81,40 @@ let start ~symbols ~port () =
             ignore state;
             let reader = Dispatcher.subscribe_audit dispatcher in
             return (Ok reader))
+        ; Rpc.Rpc.implement Rpc_protocol.login_rpc (fun state name ->
+            let all_whitespace str =
+              let is_whitespace = function
+                | ' ' | '\x0C' | '\n' | '\r' | '\t' -> true
+                | _ -> false
+              in
+              String.for_all str ~f:is_whitespace
+            in
+            if all_whitespace name || String.is_empty name
+            then return (Or_error.error_string "Not valid name")
+            else (
+              let participant = Participant.of_string name in
+              let table = Dispatcher.sessions dispatcher in
+              if Hashtbl.mem table participant
+              then
+                return
+                  (Or_error.error_string
+                     "Conflict: Participant is already logged")
+              else (
+                let new_session = Session.create participant in
+                Hashtbl.set table ~key:participant ~data:new_session;
+                state.Connection_state.session <- Some new_session;
+                return (Ok participant))))
+        ; Rpc.Rpc.implement
+            Rpc_protocol.cancel_order_rpc
+            (fun state client_order_id ->
+               match Connection_state.participant state with
+               | None -> return (Or_error.error_string "Not logged in")
+               | Some participant ->
+                 let events =
+                   Matching_engine.cancel engine participant client_order_id
+                 in
+                 Dispatcher.dispatch dispatcher events;
+                 return (Ok ()))
         ]
       ~on_unknown_rpc:`Close_connection
       ~on_exception:Log_on_background_exn
@@ -67,7 +122,14 @@ let start ~symbols ~port () =
   let%map tcp_server =
     Rpc.Connection.serve
       ~implementations
-      ~initial_connection_state:(fun _addr _conn -> ())
+      ~initial_connection_state:(fun _addr _conn ->
+        let state = { Connection_state.session = None } in
+        don't_wait_for
+          (let%bind () = Rpc.Connection.close_finished _conn in
+           match state.Connection_state.session with
+           | None -> Deferred.unit
+           | Some session -> Dispatcher.clean_up_session dispatcher session);
+        state)
       ~where_to_listen:(Tcp.Where_to_listen.of_port port)
       ()
   in

@@ -11,6 +11,7 @@ let make_order ~side ~price_cents ~order_id ?(size = 100) ?(participant = Harnes
      ; price = Price.of_int_cents price_cents
      ; size = Size.of_int size
      ; time_in_force = Day
+     ; client_order_id = Client_order_id.of_int 1
      } : Order.Request.t)
     ~order_id:(Order_id.For_testing.of_int order_id)
 ;;
@@ -195,8 +196,8 @@ let%expect_test "snapshot lists levels in price-time priority order" =
 
 let%expect_test "best_price" =
   let book = Order_book.create (Symbol.of_string "TEST") in
-  let o1 = Order.create { symbol = Symbol.of_string "TEST"; participant = Participant.of_string "Alice"; side = Side.Buy; price = Price.of_int_cents 150; size = Size.of_int 10; time_in_force = Day } ~order_id:(Order_id.For_testing.of_int 1) in
-  let o2 = Order.create { symbol = Symbol.of_string "TEST"; participant = Participant.of_string "Bob"; side = Side.Buy; price = Price.of_int_cents 200; size = Size.of_int 10; time_in_force = Day } ~order_id:(Order_id.For_testing.of_int 2) in
+  let o1 = Order.create { symbol = Symbol.of_string "TEST"; participant = Participant.of_string "Alice"; side = Side.Buy; price = Price.of_int_cents 150; size = Size.of_int 10; time_in_force = Day; client_order_id = Client_order_id.of_int 1 } ~order_id:(Order_id.For_testing.of_int 1) in
+  let o2 = Order.create { symbol = Symbol.of_string "TEST"; participant = Participant.of_string "Bob"; side = Side.Buy; price = Price.of_int_cents 200; size = Size.of_int 10; time_in_force = Day; client_order_id = Client_order_id.of_int 2} ~order_id:(Order_id.For_testing.of_int 2) in
   Order_book.add book o1;
   Order_book.add book o2;
   [%test_result: Price.t option] (Order_book.best_price book Side.Buy) ~expect:(Some (Price.of_int_cents 200))

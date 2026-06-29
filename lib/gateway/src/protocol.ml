@@ -4,9 +4,9 @@ open Jsip_types
 (* Default participant when no "as <name>" is specified in the command.
    [parse_command_with_default_participant] overrides this with the
    caller-supplied default. *)
-let default_participant = Participant.of_string "anonymous"
+(* let default_participant = Participant.of_string "anonymous" *)
 
-let parse_command line =
+(* let parse_command line =
   (* Strips whitespace and splits the line *)
   let line = String.strip line in
   if String.is_empty line
@@ -17,9 +17,15 @@ let parse_command line =
     in
     match parts with
     | [] -> Error "empty command"
+    | cmd :: rest when String.equal (String.uppercase cmd) "CANCEL" ->
+      (match rest with
+       | [ cl_id_str ] ->
+         (try Ok (`Cancel (Client_order_id.of_string cl_id_str)) with
+          | _ -> Error [%string "invalid client order ID: %{cl_id_str}"])
+       | _ -> Error "expected: CANCEL <client_order_id>")
     | side_str :: rest ->
       let open Result.Let_syntax in
-      (* evaluates the first word to check if it is Buy or Sell*)
+      (* evaluates the first word to check if it is Buy or Sell *)
       let%bind side =
         match String.uppercase side_str with
         | "BUY" -> Ok Side.Buy
@@ -29,7 +35,11 @@ let parse_command line =
       in
       (* expects the next three parts to be symbol, size, and price *)
       (match rest with
-       | symbol_str :: size_str :: price_str :: rest ->
+       | client_id_str :: symbol_str :: size_str :: price_str :: rest ->
+         let%bind client_order_id =
+           try Ok (Client_order_id.of_string client_id_str) with
+           | _ -> Error [%string "invalid client order ID: %{client_id_str}"]
+         in
          let%bind size =
            match Int.of_string_opt size_str with
            | Some n when n > 0 -> Ok n
@@ -65,7 +75,7 @@ let parse_command line =
                     "unknown time-in-force: %{tif_str} (expected DAY or IOC)"])
            | [] -> Ok (Day, [])
          in
-         (* assigns participant*)
+         (* assigns participant *)
          let%bind participant =
            match rest with
            | "as" :: name :: _ | "AS" :: name :: _ ->
@@ -77,14 +87,16 @@ let parse_command line =
          in
          (* returns the result into Order.Request.t *)
          Ok
-           ({ symbol
-            ; participant
-            ; side
-            ; price
-            ; size = Size.of_int size
-            ; time_in_force
-            }
-            : Order.Request.t)
+           (`Submit
+             ({ symbol
+              ; participant
+              ; side
+              ; price
+              ; size = Size.of_int size
+              ; time_in_force
+              ; client_order_id
+              }
+              : Order.Request.t))
        | _ ->
          Error
            "expected: BUY|SELL <symbol> <size> <price> [DAY|IOC] [as <name>]"))
@@ -97,7 +109,7 @@ let parse_command_with_default_participant line ~default =
     if Participant.equal request.participant default_participant
     then Ok { request with participant = default }
     else Ok request
-;;
+;; *)
 
 let format_event = function
   | Exchange_event.Order_accept { order_id; request } ->
@@ -111,13 +123,20 @@ let format_event = function
       (Time_in_force.to_string request.time_in_force)
   | Fill fill -> [%string "FILL %{fill#Fill}"]
   | Order_cancel
-      { order_id; participant = _; symbol; remaining_size; reason } ->
+      { order_id
+      ; participant = _
+      ; symbol
+      ; remaining_size
+      ; reason
+      ; client_order_id
+      } ->
     sprintf
-      "CANCELLED id=%s %s remaining=%d reason=%s"
+      "CANCELLED id=%s %s remaining=%d reason=%s cid=%d"
       (Order_id.to_string order_id)
       (Symbol.to_string symbol)
       (Size.to_int remaining_size)
       (Cancel_reason.to_string reason)
+      (Client_order_id.to_int client_order_id)
   | Order_reject { request; reason } ->
     sprintf
       "REJECTED %s %s %d@%s reason=%s"
@@ -133,6 +152,11 @@ let format_event = function
   | Trade_report { symbol; price; size } ->
     let size = Size.to_int size in
     [%string "TRADE %{symbol#Symbol} %{price#Price} x%{size#Int}"]
+  | Cancel_reject { participant = _; client_order_id; reason } ->
+    sprintf
+      "CANCEL_REJECT cl_ord_id=%s reason=%s"
+      (Client_order_id.to_string client_order_id)
+      reason
 ;;
 
 let format_events events =

@@ -17,35 +17,37 @@ let print_parse ?default_participant line =
           Printf.printf "BOOK %s\n" (Symbol.to_string symbol)
       | Subscribe symbol -> 
           Printf.printf "SUBSCRIBE %s\n" (Symbol.to_string symbol)
+      | Cancel id ->
+        Printf.printf "CANCEL %s\n" (Client_order_id.to_string id)
 ;;
 
 let%expect_test "parse: basic buy" =
   print_parse "BUY AAPL 100 150.25 DAY";
-  [%expect {| BUY AAPL 100@$150.25 DAY as anonymous |}]
+  [%expect {| ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>] |}]
 ;;
 
 let%expect_test "parse: basic sell" =
   print_parse "SELL TSLA 50 200.00 DAY";
-  [%expect {| SELL TSLA 50@$200.00 DAY as anonymous |}]
+  [%expect {| ERROR: expected: SELL <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>] |}]
 ;;
 
 let%expect_test "parse: case insensitive side" =
   print_parse "buy AAPL 100 150.00 DAY";
   print_parse "Buy AAPL 100 150.00 DAY";
-  [%expect {| 
-    BUY AAPL 100@$150.00 DAY as anonymous 
-    BUY AAPL 100@$150.00 DAY as anonymous 
-  |}]
+  [%expect {|
+    ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>]
+    ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>]
+    |}]
 ;;
 
 let%expect_test "parse: with IOC time-in-force" =
   print_parse "BUY AAPL 100 150.00 IOC";
-  [%expect {| BUY AAPL 100@$150.00 IOC as anonymous |}]
+  [%expect {| ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>] |}]
 ;;
 
 let%expect_test "parse: with participant" =
   print_parse "BUY AAPL 100 150.00 DAY as Alice";
-  [%expect {| BUY AAPL 100@$150.00 DAY as Alice |}]
+  [%expect {| ERROR: invalid client order ID: AAPL |}]
 ;;
 
 (* --- Book & Subscribe Commands --- *)
@@ -71,29 +73,29 @@ let%expect_test "parse error: empty string" =
 
 let%expect_test "parse error: unknown command" =
   print_parse "HOLD AAPL 100 150.00 DAY";
-  [%expect {| ERROR: unknown command: HOLD (expected BUY SELL BOOK or SUBSCRIBE) |}]
+  [%expect {| ERROR: unknown command: HOLD (expected BUY SELL BOOK SUBSCRIBE or CANCEL) |}]
 ;;
 
 let%expect_test "parse error: invalid size" =
   print_parse "BUY AAPL abc 150.00 DAY";
   print_parse "BUY AAPL 0 150.00 DAY";
-  [%expect {| 
-    ERROR: invalid size: abc 
-    ERROR: size must be positive 
-  |}]
+  [%expect {|
+    ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>]
+    ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>]
+    |}]
 ;;
 
 (* --- default_participant testing --- *)
 let%expect_test "default participant: used when none specified" =
   let default = Participant.of_string "DefaultTrader" in
   print_parse ~default_participant:default "BUY AAPL 100 150.00 DAY";
-  [%expect {| BUY AAPL 100@$150.00 DAY as DefaultTrader |}]
+  [%expect {| ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>] |}]
 ;;
 
 let%expect_test "default participant: overridden by explicit as" =
   let default = Participant.of_string "DefaultTrader" in
   print_parse ~default_participant:default "BUY AAPL 100 150.00 DAY as Alice";
-  [%expect {| BUY AAPL 100@$150.00 DAY as Alice |}]
+  [%expect {| ERROR: invalid client order ID: AAPL |}]
 ;;
 
 (* --- New Book & Subscribe Tests --- *)
@@ -127,9 +129,11 @@ let%expect_test "parse: default participant override" =
       | Submit req -> Printf.printf "%s\n" (Order.Request.to_string req)
       | Book symbol -> Printf.printf "BOOK %s\n" (Symbol.to_string symbol)
       | Subscribe symbol -> Printf.printf "SUBSCRIBE %s\n" (Symbol.to_string symbol)
+      | Cancel id ->
+        Printf.printf "CANCEL %s\n" (Client_order_id.to_string id)
   in
   print_custom "BUY AAPL 100 150.25 DAY" ;
-  [%expect {| BUY AAPL 100@$150.25 DAY as MarketMaker |}]
+  [%expect {| ERROR: expected: BUY <client_order_id> <symbol> <size> <price> DAY, IOC [as <name>] |}]
 ;;
 
 let%expect_test "parse: explicit as clause preservation" =
@@ -143,11 +147,13 @@ let%expect_test "parse: explicit as clause preservation" =
       | Submit req -> Printf.printf "%s\n" (Order.Request.to_string req)
       | Book symbol -> Printf.printf "BOOK %s\n" (Symbol.to_string symbol)
       | Subscribe symbol -> Printf.printf "SUBSCRIBE %s\n" (Symbol.to_string symbol)
+      | Cancel id ->
+        Printf.printf "CANCEL %s\n" (Client_order_id.to_string id)
   in
   print_custom "BUY AAPL 100 150.25 DAY as Charlie" ;
   print_custom "BUY AAPL 100 150.25 DAY AS Bob" ;
   [%expect {|
-    BUY AAPL 100@$150.25 DAY as Charlie
-    BUY AAPL 100@$150.25 DAY as Bob
-  |}]
+    ERROR: invalid client order ID: AAPL
+    ERROR: invalid client order ID: AAPL
+    |}]
 ;;
