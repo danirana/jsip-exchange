@@ -1,6 +1,6 @@
 (** Exchange server.
 
-    Runs the matching engine and listens for RPC connections from clients..
+    Runs the matching engine and listens for RPC connections from clients.
 
     Run with: dune exec app/server/bin/main.exe -- -port 12345
 
@@ -11,10 +11,9 @@ open! Core
 open! Async
 open Jsip_types
 open Jsip_gateway
-open Jsip_market_maker
 module Bot_runtime = Jsip_bot_runtime.Bot_runtime
-module Context = Bot_runtime.Context
-module Market_maker_bot = Market_maker_bot.Market_maker_bot
+module Market_maker_bot = Jsip_market_maker.Market_maker_bot
+module Fundamental_oracle = Jsip_fundamental.Fundamental_oracle
 
 let default_symbols =
   [ Symbol.of_string "AAPL"
@@ -25,94 +24,79 @@ let default_symbols =
 ;;
 
 let connect_as ~where_to_connect participant =
-  let%bind connection = Rpc.Connection.client where_to_connect >>| Result.ok_exn in
+  let%bind connection =
+    Rpc.Connection.client where_to_connect >>| Result.ok_exn
+  in
   let username = Participant.to_string participant in
-  let%map login_result = Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc connection username in
+  let%map login_result =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc connection username
+  in
   let _authenticated_participant = Or_error.ok_exn login_result in
   connection
 ;;
 
+(* Seed the book with a single dynamic market maker on AAPL, driven through
+   [Bot_runtime]: open a logged-in connection, hand the runtime [submit] /
+   [cancel] closures bound to that connection, and feed the bot's session
+   events into its [on_event] handler. This mirrors
+   [Jsip_scenario_runner.Runner.start_bot]. *)
 let seed_market_maker ~where_to_connect =
-  let aapl = Symbol.of_string "AAPL" in
   let mm_participant = Participant.of_string "MarketMaker" in
-  let config : Market_maker_bot.Config.t =
-    { symbol = aapl
-    ; fair_value_cents = 15000
-    ; half_spread_cents = 10
-    ; size_per_level = 100
-    ; num_levels = 5
-    ; client_order_id = Client_order_id.of_int 1
-    ; inventory_skew_cents_per_share = 5
-    }
+  let%bind connection = connect_as ~where_to_connect mm_participant in
+  let config =
+    Market_maker_bot.Config.create
+      ~symbol:(Symbol.of_string "AAPL")
+      ~fair_value_cents:15000
+      ~half_spread_cents:10
+      ~size_per_level:100
+      ~num_levels:5
+      ~client_order_id:(Client_order_id.of_int 1)
+      ~inventory_skew_cents_per_share:5
   in
-  (* let%bind conn = connect_as ~where_to_connect mm_participant in
-  let context = Context.create config in 
-  Market_maker_bot.on_start config context  *)
-;; 
-
-(* Two market makers per symbol with offset fair values: MM_High's bids cross
-   MM_Low's asks every cycle, producing a steady stream of [Fill] /
-   [Trade_report] events across multiple symbols for the monitor to render.
-
-   Because [Market_maker.seed_book] always submits Day orders and there is no
-   cancel yet, the un-crossable levels (MM_Low's bids and MM_High's asks)
-   accumulate over time — this mode is for short demos, not long-running load
-   tests. *)
-let trade_back_and_forth ~where_to_connect =
-  (* One pair of MMs per symbol, anchored at a representative fair value. *)
-  let symbol_anchors =
-    [ Symbol.of_string "AAPL", 15000
-    ; Symbol.of_string "TSLA", 25000
-    ; Symbol.of_string "GOOG", 28000
-    ]
+  let submit request =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.submit_order_rpc connection request
   in
-  (* MM_Low's fair value sits [low_offset_cents] below the anchor and
-     MM_High's sits [high_offset_cents] above. The offsets are asymmetric so
-     MM_High's bid (at [anchor + high_offset_cents - half_spread]) crosses
-     MM_Low's ask (at [anchor + low_offset_cents + half_spread]). *)
-  let low_offset_cents = -10 in
-  let high_offset_cents = 15 in
-  let cycle_period = Time_ns.Span.of_sec 2. in
-  let make ~participant ~symbol ~fair_value_cents : Market_maker.Config.t =
-    { participant
-    ; symbol
-    ; fair_value_cents
-    ; half_spread_cents = 5
-    ; size_per_level = 25
-    ; num_levels = 3
-    ; client_order_id = Client_order_id.of_int 1
-    ; inventory_skew_cents_per_share = 5
-    }
+  let cancel client_order_id =
+    Rpc.Rpc.dispatch_exn
+      Rpc_protocol.cancel_order_rpc
+      connection
+      client_order_id
   in
-  (* Two market makers total, each shared across all symbols — so we open
-     exactly one logged-in connection per participant. *)
-  let mm_low = Participant.of_string "MM_Low" in
-  let mm_high = Participant.of_string "MM_High" in
-  let%bind low_conn = connect_as ~where_to_connect mm_low in
-  let%bind high_conn = connect_as ~where_to_connect mm_high in
-  let configs_for_symbol (symbol, anchor) =
-    [ ( low_conn
-      , make
-          ~participant:mm_low
-          ~symbol
-          ~fair_value_cents:(anchor + low_offset_cents) )
-    ; ( high_conn
-      , make
-          ~participant:mm_high
-          ~symbol
-          ~fair_value_cents:(anchor + high_offset_cents) )
-    ]
+  (* This bot never consults the fundamental oracle, but [Bot_runtime.create]
+     requires one; an empty oracle suffices. *)
+  let oracle =
+    Fundamental_oracle.create
+      (Symbol.Map.empty : Fundamental_oracle.Config.t)
+      ~seed:0
   in
-  let configs = List.concat_map symbol_anchors ~f:configs_for_symbol in
-  let cycle () =
-    Deferred.List.iter ~how:`Sequential configs ~f:(fun (conn, config) ->
-      Market_maker.seed_book config conn ~fair_value_cents:config.fair_value_cents)
+  let bot =
+    Bot_runtime.create
+      (module Market_maker_bot : Bot_runtime.Bot
+        with type Config.t = Market_maker_bot.Config.t)
+      config
+      ~participant:mm_participant
+      ~oracle
+      ~rng:(Splittable_random.of_int 0)
+      ~submit
+      ~cancel
+      ~tick_interval:(Time_ns.Span.of_sec 1.)
   in
-  let%map () = cycle () in
-  Clock_ns.every cycle_period (fun () -> don't_wait_for (cycle ()))
+  let%bind session_pipe, session_metadata =
+    Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc connection ()
+  in
+  don't_wait_for (Pipe.iter session_pipe ~f:(Bot_runtime.feed_event bot));
+  don't_wait_for
+    (match%map Rpc.Pipe_rpc.close_reason session_metadata with
+     | Rpc.Pipe_close_reason.Closed_locally
+     | Rpc.Pipe_close_reason.Closed_remotely ->
+       ()
+     | Rpc.Pipe_close_reason.Error err ->
+       [%log.error "session feed pipe closed with error" (err : Error.t)]);
+  don't_wait_for (Bot_runtime.start bot);
+  return ()
 ;;
 
-let start ~port ~market_maker_behavior =
+let start ~port ~should_seed_market_maker =
   let%bind server =
     Exchange_server.start ~symbols:default_symbols ~port ()
   in
@@ -120,21 +104,11 @@ let start ~port ~market_maker_behavior =
     Tcp.Where_to_connect.of_host_and_port { host = "localhost"; port }
   in
   let%bind () =
-    match market_maker_behavior with
-    | `Trade_back_and_forth ->
-      let%map () =
-        print_endline
-          "=== Starting two market makers trading back-and-forth ===";
-        trade_back_and_forth ~where_to_connect
-      in
-      print_endline ""
-    | `Seed_market_maker ->
-      let%map () =
-        print_endline "=== Seeding book with market maker orders ===";
-        seed_market_maker ~where_to_connect
-      in
-      print_endline ""
-    | `Do_nothing -> Deferred.unit
+    if should_seed_market_maker
+    then (
+      print_endline "=== Seeding book with market maker orders ===";
+      seed_market_maker ~where_to_connect)
+    else Deferred.unit
   in
   print_endline
     [%string
@@ -152,18 +126,12 @@ let () =
     ~summary:"JSIP Exchange server"
     (let%map_open.Command port =
        flag "-port" (required int) ~doc:"PORT port to listen on"
-     and market_maker_behavior =
-       choose_one
-         ~if_nothing_chosen:(Default_to `Do_nothing)
-         [ flag
-             "-trade-back-and-forth"
-             (no_arg_some `Trade_back_and_forth)
-             ~doc:
-               " run two market makers in a loop, generating sustained \
-                traffic for the monitor (mutually exclusive with \
-                -seed-market-maker)"
-         ]
+     and should_seed_market_maker =
+       flag
+         "-seed-market-maker"
+         no_arg
+         ~doc:" seed the book with a dynamic market maker bot"
      in
-     fun () -> start ~port ~market_maker_behavior)
+     fun () -> start ~port ~should_seed_market_maker)
   |> Command_unix.run
 ;;

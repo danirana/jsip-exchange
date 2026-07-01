@@ -104,3 +104,48 @@ let%expect_test "audit-log RPC" =
     |}];
   return ()
 ;;
+
+(* Digest-level shape tests for the session RPCs added in Part 2. These pin
+   the bin_io layout of the types crossing each connection — [login-rpc]'s
+   [Participant.t Or_error.t] response, [session-feed]'s [Exchange_event.t]
+   stream, and [cancel-order]'s [Client_order_id.t] query — which is what a
+   reconciliation compares. (The [description]-based blocks above pin only the
+   name and version.) *)
+
+let%expect_test "login-rpc shapes" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Rpc_protocol.login_rpc
+       : Async_rpc_kernel.Rpc_shapes.t)];
+  [%expect {|
+    (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
+     (response a77b3b6e3753246ce7ec1f3467c939eb))
+    |}];
+  return ()
+;;
+
+let%expect_test "session-feed shapes" =
+  print_s
+    [%sexp
+      (Rpc.Pipe_rpc.shapes Rpc_protocol.session_feed_rpc
+       : Async_rpc_kernel.Rpc_shapes.t)];
+  [%expect {|
+    (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+     (initial_response 86ba5df747eec837f0b391dd49f33f9e)
+     (update_response 56cce4ee852f00d9f51b46483bdae93e)
+     (error 52966f4a49a77bfdff668e9cc61511b3))
+    |}];
+  return ()
+;;
+
+let%expect_test "cancel-order shapes" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Rpc_protocol.cancel_order_rpc
+       : Async_rpc_kernel.Rpc_shapes.t)];
+  [%expect {|
+    (Rpc (query 698cfa4093fe5e51523842d37b92aeac)
+     (response 27f76252e5181aab209cd62aa6e42268))
+    |}];
+  return ()
+;;

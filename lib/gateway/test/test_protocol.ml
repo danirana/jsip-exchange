@@ -41,7 +41,7 @@ let%expect_test "parse: with IOC time-in-force" =
 
 let%expect_test "parse: with participant" =
   print_parse "BUY 106 AAPL 100 150.00 DAY as Alice";
-  [%expect {| BUY 106 AAPL 100@$150.00 DAY as anonymous |}]
+  [%expect {| BUY 106 AAPL 100@$150.00 DAY as Alice |}]
 ;;
 
 let%expect_test "parse: extra whitespace is ignored" =
@@ -124,7 +124,7 @@ let%expect_test "default participant: used when none specified" =
 let%expect_test "default participant: overridden by explicit 'as'" =
   let default_participant = Participant.of_string "DefaultTrader" in
   print_parse ~default_participant " BUY 115 AAPL 100 150.00 DAY as Alice";
-  [%expect {| BUY 115 AAPL 100@$150.00 DAY as DefaultTrader |}]
+  [%expect {| BUY 115 AAPL 100@$150.00 DAY as Alice |}]
 ;;
 
 (* --- Event formatting --- *)
@@ -236,7 +236,7 @@ let%expect_test "round-trip: parse a command, submit, format result" =
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     BBO AAPL bid=- ask=$150.00 x100
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(anonymous, cid=2) BUY resting=1(Bob, cid=1)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=2) BUY resting=1(Bob, cid=1)
     TRADE AAPL $150.00 x100
     BBO AAPL bid=- ask=-
     |}]

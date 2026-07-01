@@ -71,7 +71,7 @@ let parse ?default_participant line =
             :: size_str
             :: price_str
             :: time_in_force_str
-            :: _ ->
+            :: rest_args ->
             let%bind client_order_id =
               try
                 Or_error.return
@@ -114,10 +114,23 @@ let parse ?default_participant line =
                   time_in_force_str
                   Time_in_force.all_str
             in
-            let participant =
-              match default_participant with
-              | Some p -> p
-              | None -> Participant.of_string "anonymous"
+            (* An optional trailing [as <name>] overrides the default
+               participant; anything else after the time-in-force is an
+               error. *)
+            let%bind participant =
+              match rest_args with
+              | [] ->
+                Or_error.return
+                  (Option.value
+                     default_participant
+                     ~default:(Participant.of_string "anonymous"))
+              | [ as_keyword; name ]
+                when String.Caseless.equal as_keyword "as" ->
+                Or_error.return (Participant.of_string name)
+              | _ ->
+                Or_error.errorf
+                  "unexpected trailing arguments: %s"
+                  (String.concat ~sep:" " rest_args)
             in
             let side = Verb.get_side verb in
             Or_error.return

@@ -17,6 +17,12 @@ let run_client ~host ~port ~participant_name =
     Tcp.Where_to_connect.of_host_and_port { host; port }
   in
   let%bind conn = Rpc.Connection.client where_to_connect >>| Result.ok_exn in
+  (* Log in before any session-scoped RPC: the server rejects session-feed,
+     book, and order requests from a connection with no session. *)
+  let%bind login_result =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc conn participant_name
+  in
+  let (_ : Participant.t) = Or_error.ok_exn login_result in
   (* open a pipe between client and server *)
   let%bind session_feed_result =
     Rpc.Pipe_rpc.dispatch Rpc_protocol.session_feed_rpc conn ()

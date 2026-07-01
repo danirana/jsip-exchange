@@ -140,9 +140,3 @@ let%expect_test "is_marketable" =
        ~resting_price:(Price.of_int_cents 100))
     ~expect:true
 ;;
-
-(* let create (req : Request.t) ~order_id = if Size.( <= ) req.size Size.zero
-   then raise_s
-   [%message "Order.create: size must be positive" (req.size : Size.t)];
-   [{ order_id ; symbol = req.symbol ; participant = req.participant ; side = req.side ; price = req.price ; size = req.size ; remaining_size = req.size ; time_in_force = req.time_in_force }]
-   ;; *)

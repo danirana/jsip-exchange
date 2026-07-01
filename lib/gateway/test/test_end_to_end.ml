@@ -401,6 +401,52 @@ let%expect_test "dual login conflicts block second participant connection" =
     return ())
 ;;
 
+let%expect_test "second login on the same connection is rejected" =
+  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+    let target_address =
+      Tcp.Where_to_connect.of_host_and_port
+        { Host_and_port.host = "localhost"; port }
+    in
+    let connect () =
+      Rpc.Connection.client target_address
+      |> Deferred.Result.map_error ~f:Error.of_exn
+      |> Deferred.Or_error.ok_exn
+    in
+    let login conn name =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.login_rpc
+        conn
+        (Participant.to_string name)
+    in
+    let print_login label res =
+      print_endline
+        (match res with
+         | Ok (Ok p) -> [%string "%{label}: logged in as %{p#Participant}"]
+         | Ok (Error err) -> [%string "%{label}: %{Error.to_string_hum err}"]
+         | Error err ->
+           [%string "%{label}: transport error: %{Error.to_string_hum err}"])
+    in
+    let%bind conn1 = connect () in
+    let%bind first = login conn1 Harness.alice in
+    print_login "alice on conn1" first;
+    [%expect {| alice on conn1: logged in as Alice |}];
+    (* A second login on the SAME connection must be rejected, not silently
+       overwrite alice's session — doing so would orphan alice in the
+       registry (disconnect only cleans up the connection's current session). *)
+    let%bind second = login conn1 Harness.bob in
+    print_login "bob on conn1" second;
+    [%expect {| bob on conn1: Already logged in on this connection |}];
+    (* The rejected login must not have half-registered bob: a fresh
+       connection can still claim the name. *)
+    let%bind conn2 = connect () in
+    let%bind third = login conn2 Harness.bob in
+    print_login "bob on conn2" third;
+    [%expect {| bob on conn2: logged in as Bob |}];
+    let%bind () = Rpc.Connection.close conn1 in
+    let%bind () = Rpc.Connection.close conn2 in
+    return ())
+;;
+
 let%expect_test "submit, cancel, BBO update delta shift, duplicate rejects, \
                  non-existent drops"
   =

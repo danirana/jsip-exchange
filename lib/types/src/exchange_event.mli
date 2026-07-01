@@ -36,13 +36,17 @@ type t =
       ; price : Price.t
       ; size : Size.t
       }
+  (** A public trade print. Unlike [Fill], this contains no information about
+      the participants — it is what the broader market sees. *)
   | Cancel_reject of
       { participant : Participant.t
       ; client_order_id : Client_order_id.t
       ; reason : string
       }
-  (** A public trade print. Unlike [Fill], this contains no information about
-      the participants — it is what the broader market sees. *)
+  (** A cancel request the matching engine could not honor — e.g. there is no
+      resting order with that [client_order_id], or the symbol is unknown.
+      Sent only to the [participant] who requested the cancel; [reason]
+      explains the failure. *)
 [@@deriving sexp, bin_io]
 
 (** Is this a market data event (BBO update or trade report)? *)

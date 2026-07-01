@@ -92,18 +92,28 @@ let start ~symbols ~port () =
             if all_whitespace name || String.is_empty name
             then return (Or_error.error_string "Not valid name")
             else (
-              let participant = Participant.of_string name in
-              let table = Dispatcher.sessions dispatcher in
-              if Hashtbl.mem table participant
-              then
+              match state.Connection_state.session with
+              | Some _ ->
+                (* One session per connection. A second login on the same
+                   connection would orphan the first participant in the
+                   registry, because disconnect cleanup only removes the
+                   connection's current [state.session]. *)
                 return
                   (Or_error.error_string
-                     "Conflict: Participant is already logged")
-              else (
-                let new_session = Session.create participant in
-                Hashtbl.set table ~key:participant ~data:new_session;
-                state.Connection_state.session <- Some new_session;
-                return (Ok participant))))
+                     "Already logged in on this connection")
+              | None ->
+                let participant = Participant.of_string name in
+                let table = Dispatcher.sessions dispatcher in
+                if Hashtbl.mem table participant
+                then
+                  return
+                    (Or_error.error_string
+                       "Conflict: Participant is already logged")
+                else (
+                  let new_session = Session.create participant in
+                  Hashtbl.set table ~key:participant ~data:new_session;
+                  state.Connection_state.session <- Some new_session;
+                  return (Ok participant))))
         ; Rpc.Rpc.implement
             Rpc_protocol.cancel_order_rpc
             (fun state client_order_id ->
