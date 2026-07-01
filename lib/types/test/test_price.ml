@@ -77,52 +77,72 @@ let%expect_test "negative to_string_dollar" =
 
 let%expect_test "is_more_aggressive" =
   [%test_result: bool]
-    (Price.is_more_aggressive Side.Buy ~price:(Price.of_int_cents 150) ~than:(Price.of_int_cents 100))
+    (Price.is_more_aggressive
+       Side.Buy
+       ~price:(Price.of_int_cents 150)
+       ~than:(Price.of_int_cents 100))
     ~expect:true;
   [%test_result: bool]
-    (Price.is_more_aggressive Side.Buy ~price:(Price.of_int_cents 100) ~than:(Price.of_int_cents 150))
+    (Price.is_more_aggressive
+       Side.Buy
+       ~price:(Price.of_int_cents 100)
+       ~than:(Price.of_int_cents 150))
     ~expect:false;
   [%test_result: bool]
-    (Price.is_more_aggressive Side.Sell ~price:(Price.of_int_cents 50) ~than:(Price.of_int_cents 100))
+    (Price.is_more_aggressive
+       Side.Sell
+       ~price:(Price.of_int_cents 50)
+       ~than:(Price.of_int_cents 100))
     ~expect:true;
   [%test_result: bool]
-    (Price.is_more_aggressive Side.Sell ~price:(Price.of_int_cents 150) ~than:(Price.of_int_cents 100))
+    (Price.is_more_aggressive
+       Side.Sell
+       ~price:(Price.of_int_cents 150)
+       ~than:(Price.of_int_cents 100))
     ~expect:false;
   [%test_result: bool]
-    (Price.is_more_aggressive Side.Sell ~price:(Price.of_int_cents 100) ~than:(Price.of_int_cents 100))
+    (Price.is_more_aggressive
+       Side.Sell
+       ~price:(Price.of_int_cents 100)
+       ~than:(Price.of_int_cents 100))
     ~expect:false
 ;;
 
 let%expect_test "is_marketable" =
   [%test_result: bool]
-    (Price.is_marketable Side.Buy ~price:(Price.of_int_cents 150) ~resting_price:(Price.of_int_cents 100))
+    (Price.is_marketable
+       Side.Buy
+       ~price:(Price.of_int_cents 150)
+       ~resting_price:(Price.of_int_cents 100))
     ~expect:true;
   [%test_result: bool]
-    (Price.is_marketable Side.Buy ~price:(Price.of_int_cents 100) ~resting_price:(Price.of_int_cents 150))
+    (Price.is_marketable
+       Side.Buy
+       ~price:(Price.of_int_cents 100)
+       ~resting_price:(Price.of_int_cents 150))
     ~expect:false;
   [%test_result: bool]
-    (Price.is_marketable Side.Sell ~price:(Price.of_int_cents 50) ~resting_price:(Price.of_int_cents 100))
+    (Price.is_marketable
+       Side.Sell
+       ~price:(Price.of_int_cents 50)
+       ~resting_price:(Price.of_int_cents 100))
     ~expect:true;
   [%test_result: bool]
-    (Price.is_marketable Side.Sell ~price:(Price.of_int_cents 150) ~resting_price:(Price.of_int_cents 100))
+    (Price.is_marketable
+       Side.Sell
+       ~price:(Price.of_int_cents 150)
+       ~resting_price:(Price.of_int_cents 100))
     ~expect:false;
   [%test_result: bool]
-    (Price.is_marketable Side.Sell ~price:(Price.of_int_cents 100) ~resting_price:(Price.of_int_cents 100))
+    (Price.is_marketable
+       Side.Sell
+       ~price:(Price.of_int_cents 100)
+       ~resting_price:(Price.of_int_cents 100))
     ~expect:true
 ;;
 
-(*let create (req : Request.t) ~order_id =
-  if Size.( <= ) req.size Size.zero
-  then
-    raise_s
-      [%message "Order.create: size must be positive" (req.size : Size.t)];
-  { order_id
-  ; symbol = req.symbol
-  ; participant = req.participant
-  ; side = req.side
-  ; price = req.price
-  ; size = req.size
-  ; remaining_size = req.size
-  ; time_in_force = req.time_in_force
-  }
-;;*)
+(* let create (req : Request.t) ~order_id = if Size.( <= ) req.size Size.zero
+   then raise_s
+   [%message "Order.create: size must be positive" (req.size : Size.t)];
+   [{ order_id ; symbol = req.symbol ; participant = req.participant ; side = req.side ; price = req.price ; size = req.size ; remaining_size = req.size ; time_in_force = req.time_in_force }]
+   ;; *)

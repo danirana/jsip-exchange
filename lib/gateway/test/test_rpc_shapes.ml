@@ -27,7 +27,7 @@ let%expect_test "login_rpc shape" =
   print_s [%sexp (description : Rpc.Description.t)];
   [%expect {|
     ((name login-rpc) (version 1))
-  |}]; 
+  |}];
   return ()
 ;;
 

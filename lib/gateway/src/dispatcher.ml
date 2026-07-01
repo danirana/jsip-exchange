@@ -6,8 +6,8 @@ type t =
   { market_data_subscribers_by_symbol :
       Exchange_event.t Pipe.Writer.t Bag.t Symbol.Table.t
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
-  (* key, value -> participant, session *)
-  ; sessions_table : Session.t Participant.Table.t; 
+      (* key, value -> participant, session *)
+  ; sessions_table : Session.t Participant.Table.t
   }
 
 let create () =
@@ -29,17 +29,14 @@ let clean_up_session t session =
 ;;
 
 let set_up_session t participant =
-
   let table = sessions t in
   let%bind () =
-    match (Hashtbl.find table participant) with
+    match Hashtbl.find table participant with
     | Some _session -> clean_up_session t _session
     | None -> Deferred.return ()
   in
-  
   let new_session = Session.create participant in
   Hashtbl.set table ~key:participant ~data:new_session;
-  
   Deferred.return ()
 ;;
 
@@ -93,10 +90,9 @@ let push_audit t event =
 (* writes the event to the appropriate session's pipe. *)
 let push_to_session t participant event =
   let table = sessions t in
-  
-  match (Hashtbl.find table participant) with
-    | Some session -> Session.push session event
-    | None -> ()
+  match Hashtbl.find table participant with
+  | Some session -> Session.push session event
+  | None -> ()
 ;;
 
 let dispatch_event t (event : Exchange_event.t) =

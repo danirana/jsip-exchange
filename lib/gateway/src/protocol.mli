@@ -34,10 +34,8 @@ open Jsip_types
 (** Like [parse_command], but uses [default] as the participant if none is
     specified in the command text. Useful for clients that already know their
     identity. *)
-(* val parse_command_with_default_participant
-  :  string
-  -> default:Participant.t
-  -> (Order.Request.t, string) Result.t *)
+(* val parse_command_with_default_participant : string ->
+   default:Participant.t -> (Order.Request.t, string) Result.t *)
 
 (** Format an exchange event as a single line of human-readable text. *)
 val format_event : Exchange_event.t -> string

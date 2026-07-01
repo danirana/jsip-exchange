@@ -14,24 +14,30 @@ let with_server ~symbols f =
 type client = { conn : Rpc.Connection.t }
 
 let connect_as ~port (participant : Participant.t) =
-  let where = Tcp.Where_to_connect.of_host_and_port { host = "localhost"; port } in
+  let where =
+    Tcp.Where_to_connect.of_host_and_port { host = "localhost"; port }
+  in
   let%bind conn = Rpc.Connection.client where >>| Result.ok_exn in
   let client = { conn } in
-  
   (* dispatches login_rpc with participant *)
-  let%bind (_ : Participant.t) = Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc client.conn (Participant.to_string participant) >>| Or_error.ok_exn in
-  
+  let%bind (_ : Participant.t) =
+    Rpc.Rpc.dispatch_exn
+      Rpc_protocol.login_rpc
+      client.conn
+      (Participant.to_string participant)
+    >>| Or_error.ok_exn
+  in
   (* dispatches session_feed_rpc *)
-  let%bind session_feed, _metadata = Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc client.conn () in
-  
-  (* background task that prints every event it receives with a particpant tag prefix *)
-  
+  let%bind session_feed, _metadata =
+    Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc client.conn ()
+  in
+  (* background task that prints every event it receives with a particpant
+     tag prefix *)
   don't_wait_for
-  (Pipe.iter_without_pushback session_feed ~f:(fun event ->
-     let e = Protocol.format_event event in
-     let participant_string = Participant.to_string participant in
-     print_endline [%string "[%{participant_string}] %{e}"]));
-  
+    (Pipe.iter_without_pushback session_feed ~f:(fun event ->
+       let e = Protocol.format_event event in
+       let participant_string = Participant.to_string participant in
+       print_endline [%string "[%{participant_string}] %{e}"]));
   return client
 ;;
 

@@ -22,27 +22,38 @@ module Market_maker_bot = struct
 
   (* a state for a single bot *)
   module Bot_state = struct
-    type t = {
-      inventory : int Symbol.Table.t;
-      active_orders : int Client_order_id.Table.t;
-    }
+    type t =
+      { inventory : int Symbol.Table.t
+      ; active_orders : int Client_order_id.Table.t
+      }
 
-    let create () = {
-      inventory = Symbol.Table.create ();
-      active_orders = Client_order_id.Table.create ();
-    }
+    let create () =
+      { inventory = Symbol.Table.create ()
+      ; active_orders = Client_order_id.Table.create ()
+      }
+    ;;
   end
 
-  let seed_book (state: Bot_state.t) (config : Config.t) (context: Context.t) ~fair_value_cents =
-    Hashtbl.set state.active_orders ~key:config.client_order_id ~data:config.size_per_level;
-
+  let seed_book
+    (state : Bot_state.t)
+    (config : Config.t)
+    (context : Context.t)
+    ~fair_value_cents
+    =
+    Hashtbl.set
+      state.active_orders
+      ~key:config.client_order_id
+      ~data:config.size_per_level;
     let submit request =
       let%map result = Context.submit context request in
       match result with
       | Ok () -> ()
       | Error msg ->
         Hashtbl.remove state.active_orders config.client_order_id;
-      [%log.error "market_maker: submit failed" (request : Order.Request.t) (msg : Error.t)]
+        [%log.error
+          "market_maker: submit failed"
+            (request : Order.Request.t)
+            (msg : Error.t)]
     in
     let base_id = Client_order_id.to_int config.client_order_id in
     Deferred.List.iter
@@ -76,8 +87,14 @@ module Market_maker_bot = struct
              : Order.Request.t)
         in
         Deferred.unit)
+  ;;
 
-  let update_inventory (state : Bot_state.t) (fill : Fill.t) ~is_aggressor ~fill_size =
+  let update_inventory
+    (state : Bot_state.t)
+    (fill : Fill.t)
+    ~is_aggressor
+    ~fill_size
+    =
     let current_inv =
       Option.value (Hashtbl.find state.inventory fill.symbol) ~default:0
     in
@@ -96,17 +113,30 @@ module Market_maker_bot = struct
     new_inventory
   ;;
 
-  let update_active_orders (state: Bot_state.t) ~my_client_order_id ~fill_size =
+  let update_active_orders
+    (state : Bot_state.t)
+    ~my_client_order_id
+    ~fill_size
+    =
     match Hashtbl.find state.active_orders my_client_order_id with
     | None -> ()
     | Some remaining_size ->
       let new_size = remaining_size - fill_size in
       if new_size <= 0
       then Hashtbl.remove state.active_orders my_client_order_id
-      else Hashtbl.set state.active_orders ~key:my_client_order_id ~data:new_size
+      else
+        Hashtbl.set
+          state.active_orders
+          ~key:my_client_order_id
+          ~data:new_size
   ;;
 
-  let cancel_and_re_quote (state: Bot_state.t) (config : Config.t) context ~new_inventory =
+  let cancel_and_re_quote
+    (state : Bot_state.t)
+    (config : Config.t)
+    context
+    ~new_inventory
+    =
     let orders_to_cancel = Hashtbl.keys state.active_orders in
     don't_wait_for
       (let%bind () =
@@ -131,7 +161,11 @@ module Market_maker_bot = struct
   ;;
 
   (* initlizating *)
-  let on_start (state: Bot_state.t) (config : Config.t) (context : Context.t) =
+  let on_start
+    (state : Bot_state.t)
+    (config : Config.t)
+    (context : Context.t)
+    =
     seed_book state config context ~fair_value_cents:config.fair_value_cents
   ;;
 
@@ -140,7 +174,7 @@ module Market_maker_bot = struct
   (* the bot handles every event that it is involved in *)
   let on_event
     (config : Config.t)
-    (state: Bot_state.t)
+    (state : Bot_state.t)
     (context : Context.t)
     (event : Exchange_event.t)
     =
@@ -164,7 +198,9 @@ module Market_maker_bot = struct
         Participant.equal fill.aggressor_participant my_participant
       in
       let fill_size = Size.to_int fill.size in
-      let new_inventory = update_inventory state fill ~is_aggressor ~fill_size in
+      let new_inventory =
+        update_inventory state fill ~is_aggressor ~fill_size
+      in
       let my_client_order_id =
         if is_aggressor
         then fill.aggressor_client_order_id

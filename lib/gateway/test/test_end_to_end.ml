@@ -170,15 +170,19 @@ let%expect_test "e2e: subscriber only sees events for subscribed symbol" =
     in
     [%expect {| [Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
     (* Post on AAPL — subscriber SHOULD see this *)
-    let base_request = Harness.sell ~price_cents:15000 ~participant:Harness.bob () in
-    let request_with_unique_id = { base_request with client_order_id = Client_order_id.of_int 2 } in
-    let%bind () = rpc_submit bob request_with_unique_id in 
-    [%expect {| 
+    let base_request =
+      Harness.sell ~price_cents:15000 ~participant:Harness.bob ()
+    in
+    let request_with_unique_id =
+      { base_request with client_order_id = Client_order_id.of_int 2 }
+    in
+    let%bind () = rpc_submit bob request_with_unique_id in
+    [%expect
+      {| 
       [Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY 
       [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100 
-    |}]; 
-
-    return())
+    |}];
+    return ())
 ;;
 
 (* ---------------------------------------------------------------- *)
@@ -188,10 +192,20 @@ let%expect_test "e2e: subscriber only sees events for subscribed symbol" =
 let%expect_test "e2e: many clients submit orders concurrently" =
   with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
     let%bind seed = connect_as ~port Harness.bob in
-    let%bind () = Deferred.List.iter (List.init 10 ~f:Fn.id) ~how:`Sequential ~f:(fun i ->
-      let base_request = Harness.sell ~price_cents:(15000 + i) ~participant:Harness.bob () in
-      let request_with_id = { base_request with client_order_id = Client_order_id.of_int (i + 1) } in
-      rpc_submit seed request_with_id |> Deferred.ignore_m) 
+    let%bind () =
+      Deferred.List.iter
+        (List.init 10 ~f:Fn.id)
+        ~how:`Sequential
+        ~f:(fun i ->
+          let base_request =
+            Harness.sell ~price_cents:(15000 + i) ~participant:Harness.bob ()
+          in
+          let request_with_id =
+            { base_request with
+              client_order_id = Client_order_id.of_int (i + 1)
+            }
+          in
+          rpc_submit seed request_with_id |> Deferred.ignore_m)
     in
     let%bind () =
       Deferred.List.iter (List.init 5 ~f:Fn.id) ~how:`Parallel ~f:(fun i ->
@@ -250,10 +264,19 @@ let%expect_test "e2e: audit log subscriber sees full unfiltered stream \
       |}];
     (* Post a sell on TSLA — audit subscriber should see this too
        (multi-symbol). *)
-    let tsla_request = Harness.sell ~price_cents:20000 ~symbol:Harness.tsla ~participant:Harness.bob () in
-    let tsla_with_id = { tsla_request with client_order_id = Client_order_id.of_int 2 } in
-    let%bind () = rpc_submit bob tsla_with_id in 
-    [%expect {|
+    let tsla_request =
+      Harness.sell
+        ~price_cents:20000
+        ~symbol:Harness.tsla
+        ~participant:Harness.bob
+        ()
+    in
+    let tsla_with_id =
+      { tsla_request with client_order_id = Client_order_id.of_int 2 }
+    in
+    let%bind () = rpc_submit bob tsla_with_id in
+    [%expect
+      {|
       [AUDIT] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
       [AUDIT] BBO TSLA bid=- ask=$200.00 x100
       [Bob] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
@@ -312,116 +335,181 @@ let%expect_test "dispatcher: closing a subscriber's reader removes the \
 
 let%expect_test "login required before submit or cancel" =
   with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
-    let target_address = Tcp.Where_to_connect.of_host_and_port { Host_and_port.host = "localhost"; port } in
-
-    let%bind raw_conn1 = 
+    let target_address =
+      Tcp.Where_to_connect.of_host_and_port
+        { Host_and_port.host = "localhost"; port }
+    in
+    let%bind raw_conn1 =
       Rpc.Connection.client target_address
       |> Deferred.Result.map_error ~f:Error.of_exn
-      |> Deferred.Or_error.ok_exn 
+      |> Deferred.Or_error.ok_exn
     in
-    let%bind raw_conn2 = 
+    let%bind raw_conn2 =
       Rpc.Connection.client target_address
       |> Deferred.Result.map_error ~f:Error.of_exn
-      |> Deferred.Or_error.ok_exn 
+      |> Deferred.Or_error.ok_exn
     in
-    
     let request = Harness.buy ~price_cents:15000 () in
-    let%bind sub_res = Rpc.Rpc.dispatch Rpc_protocol.submit_order_rpc raw_conn1 request in
-    print_endline (match sub_res with | Ok (Error err) -> Error.to_string_hum err | _ -> "Unexpected success");
+    let%bind sub_res =
+      Rpc.Rpc.dispatch Rpc_protocol.submit_order_rpc raw_conn1 request
+    in
+    print_endline
+      (match sub_res with
+       | Ok (Error err) -> Error.to_string_hum err
+       | _ -> "Unexpected success");
     [%expect {| Not logged in |}];
-
-    let%bind cancel_res = Rpc.Rpc.dispatch Rpc_protocol.cancel_order_rpc raw_conn2 (Client_order_id.of_int 1) in
-    print_endline (match cancel_res with | Ok (Error err) -> Error.to_string_hum err | _ -> "Unexpected success");
+    let%bind cancel_res =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.cancel_order_rpc
+        raw_conn2
+        (Client_order_id.of_int 1)
+    in
+    print_endline
+      (match cancel_res with
+       | Ok (Error err) -> Error.to_string_hum err
+       | _ -> "Unexpected success");
     [%expect {| Not logged in |}];
-
     let%bind () = Rpc.Connection.close raw_conn1 in
     let%bind () = Rpc.Connection.close raw_conn2 in
     return ())
 ;;
 
-
 let%expect_test "dual login conflicts block second participant connection" =
   with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
     let%bind _alice1 = connect_as ~port Harness.alice in
-    let target_address = Tcp.Where_to_connect.of_host_and_port { Host_and_port.host = "localhost"; port } in
-
-    let%bind raw_conn = 
+    let target_address =
+      Tcp.Where_to_connect.of_host_and_port
+        { Host_and_port.host = "localhost"; port }
+    in
+    let%bind raw_conn =
       Rpc.Connection.client target_address
       |> Deferred.Result.map_error ~f:Error.of_exn
-      |> Deferred.Or_error.ok_exn 
+      |> Deferred.Or_error.ok_exn
     in
-    let%bind login_res = Rpc.Rpc.dispatch Rpc_protocol.login_rpc raw_conn (Participant.to_string Harness.alice) in
-    print_endline (match login_res with | Ok (Error err) -> Error.to_string_hum err | _ -> "Unexpected success");
+    let%bind login_res =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.login_rpc
+        raw_conn
+        (Participant.to_string Harness.alice)
+    in
+    print_endline
+      (match login_res with
+       | Ok (Error err) -> Error.to_string_hum err
+       | _ -> "Unexpected success");
     [%expect {| Conflict: Participant is already logged |}];
-    
     let%bind () = Rpc.Connection.close raw_conn in
     return ())
 ;;
 
-
-let%expect_test "submit, cancel, BBO update delta shift, duplicate rejects, non-existent drops" =
+let%expect_test "submit, cancel, BBO update delta shift, duplicate rejects, \
+                 non-existent drops"
+  =
   with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
     let%bind bob = connect_as ~port Harness.bob in
-    
     (* 1. resting order *)
-    let req1 = { (Harness.sell ~price_cents:15000 ~participant:Harness.bob ()) with client_order_id = Client_order_id.of_int 100 } in
+    let req1 =
+      { (Harness.sell ~price_cents:15000 ~participant:Harness.bob ()) with
+        client_order_id = Client_order_id.of_int 100
+      }
+    in
     let%bind () = rpc_submit bob req1 in
     [%expect {| 
       [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY 
     |}];
-
     (* 2. Verify duplicate Client Order ID submission fails *)
-    let req_dup = { (Harness.sell ~price_cents:15100 ~participant:Harness.bob ()) with client_order_id = Client_order_id.of_int 100 } in
+    let req_dup =
+      { (Harness.sell ~price_cents:15100 ~participant:Harness.bob ()) with
+        client_order_id = Client_order_id.of_int 100
+      }
+    in
     let%bind () = rpc_submit bob req_dup in
-    [%expect {| 
+    [%expect
+      {| 
       [Bob] REJECTED AAPL SELL 100@$151.00 reason=duplicate client_order_id 
     |}];
-
-    (* 3. Cancel order by ID and verify session feed receives Order_cancel and BBO update events *)
-    let%bind result = Rpc.Rpc.dispatch Rpc_protocol.cancel_order_rpc (connection bob) (Client_order_id.of_int 100) in
-    let () = Or_error.ok_exn (match result with | Ok res -> res | Error err -> Error.raise err) in
-    (* Yield scheduler execution to allow synchronous dispatcher queues to drain into the network pipe *)
+    (* 3. Cancel order by ID and verify session feed receives Order_cancel
+       and BBO update events *)
+    let%bind result =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.cancel_order_rpc
+        (connection bob)
+        (Client_order_id.of_int 100)
+    in
+    let () =
+      Or_error.ok_exn
+        (match result with Ok res -> res | Error err -> Error.raise err)
+    in
+    (* Yield scheduler execution to allow synchronous dispatcher queues to
+       drain into the network pipe *)
     let%bind () = Async.Scheduler.yield_until_no_jobs_remain () in
-    [%expect {| [Bob] CANCELLED id=1 AAPL remaining=100 reason=PARTICIPANT_REQUESTED cid=100 |}];
-
+    [%expect
+      {| [Bob] CANCELLED id=1 AAPL remaining=100 reason=PARTICIPANT_REQUESTED cid=100 |}];
     (* 4. Cancel a non-existent order *)
-    let%bind result_missing = Rpc.Rpc.dispatch Rpc_protocol.cancel_order_rpc (connection bob) (Client_order_id.of_int 999) in
-    let () = Or_error.ok_exn (match result_missing with | Ok res -> res | Error err -> Error.raise err)  in
+    let%bind result_missing =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.cancel_order_rpc
+        (connection bob)
+        (Client_order_id.of_int 999)
+    in
+    let () =
+      Or_error.ok_exn
+        (match result_missing with
+         | Ok res -> res
+         | Error err -> Error.raise err)
+    in
     let%bind () = Async.Scheduler.yield_until_no_jobs_remain () in
-    [%expect {|
+    [%expect
+      {|
       [Bob] CANCEL_REJECT cl_ord_id=999 reason=order not found
     |}];
-
     return ())
 ;;
 
-let%expect_test "e2e: cross matching triggers fill events on resting session feed and blocks cancellation of filled positions" =
+let%expect_test "e2e: cross matching triggers fill events on resting \
+                 session feed and blocks cancellation of filled positions"
+  =
   with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
     let%bind bob = connect_as ~port Harness.bob in
     let%bind alice = connect_as ~port Harness.alice in
-
     (* 1. Bob places a resting sell order *)
-    let bob_req = { (Harness.sell ~price_cents:15000 ~participant:Harness.bob ()) with client_order_id = Client_order_id.of_int 500 } in
+    let bob_req =
+      { (Harness.sell ~price_cents:15000 ~participant:Harness.bob ()) with
+        client_order_id = Client_order_id.of_int 500
+      }
+    in
     let%bind () = rpc_submit bob bob_req in
     [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
-
     (* 2. Alice aggressive buy order *)
-    let alice_req = { (Harness.buy ~price_cents:15000 ~participant:Harness.alice ()) with client_order_id = Client_order_id.of_int 1 } in
+    let alice_req =
+      { (Harness.buy ~price_cents:15000 ~participant:Harness.alice ()) with
+        client_order_id = Client_order_id.of_int 1
+      }
+    in
     let%bind () = rpc_submit alice alice_req in
-    [%expect {|
+    [%expect
+      {|
       [Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
       [Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=500)
       [Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice, cid=1) BUY resting=1(Bob, cid=500)
     |}];
-
-    (* 3. Bob attempts to cancel the fully filled order.
-          trigger a "not found" reject because filled orders are removed from the book. *)
-    let%bind result_filled = Rpc.Rpc.dispatch Rpc_protocol.cancel_order_rpc (connection bob) (Client_order_id.of_int 500) in
-    let () = Or_error.ok_exn (match result_filled with | Ok res -> res | Error err -> Error.raise err)  in
+    (* 3. Bob attempts to cancel the fully filled order. trigger a "not
+       found" reject because filled orders are removed from the book. *)
+    let%bind result_filled =
+      Rpc.Rpc.dispatch
+        Rpc_protocol.cancel_order_rpc
+        (connection bob)
+        (Client_order_id.of_int 500)
+    in
+    let () =
+      Or_error.ok_exn
+        (match result_filled with
+         | Ok res -> res
+         | Error err -> Error.raise err)
+    in
     let%bind () = Async.Scheduler.yield_until_no_jobs_remain () in
-    [%expect {|
+    [%expect
+      {|
       [Bob] CANCEL_REJECT cl_ord_id=500 reason=order not found
     |}];
-
     return ())
 ;;

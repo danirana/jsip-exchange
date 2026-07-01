@@ -49,7 +49,6 @@ val remaining_size : t -> Size.t
 val time_in_force : t -> Time_in_force.t
 val client_order_id : t -> Client_order_id.t
 
-
 (** {2 Mutation}
 
     The matching engine updates remaining size as fills occur. *)

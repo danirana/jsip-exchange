@@ -27,7 +27,6 @@ let start_bot ~where_to_connect ~oracle (Bot_spec.T spec) =
   let submit request =
     Rpc.Rpc.dispatch_exn Rpc_protocol.submit_order_rpc connection request
   in
-
   (* call cancel order rpc *)
   let cancel client_order_id =
     Rpc.Rpc.dispatch_exn
@@ -72,11 +71,9 @@ let start_bot ~where_to_connect ~oracle (Bot_spec.T spec) =
   let combined_pipe =
     Pipe.interleave_pipe (Pipe.of_list pipes_to_interleave)
   in
-
   don't_wait_for (Pipe.iter combined_pipe ~f:(Bot_runtime.feed_event bot));
-
   don't_wait_for
-    ( match%map Rpc.Pipe_rpc.close_reason session_metadata with
+    (match%map Rpc.Pipe_rpc.close_reason session_metadata with
      | Rpc.Pipe_close_reason.Closed_locally
      | Rpc.Pipe_close_reason.Closed_remotely ->
        ()

@@ -8,16 +8,26 @@ module Request = struct
     ; price : Price.t
     ; size : Size.t
     ; time_in_force : Time_in_force.t
-    ; client_order_id : Client_order_id.t;
+    ; client_order_id : Client_order_id.t
     }
   [@@deriving sexp, bin_io]
 
-  let to_string { symbol; participant; side; price; size; time_in_force; client_order_id } =
+  let to_string
+    { symbol
+    ; participant
+    ; side
+    ; price
+    ; size
+    ; time_in_force
+    ; client_order_id
+    }
+    =
     let price = Price.to_string_dollar price in
     let size = Size.to_int size in
     [%string
-      "%{side#Side} %{client_order_id#Client_order_id} %{symbol#Symbol} %{size#Int}@%{price} \
-       %{time_in_force#Time_in_force} as %{participant#Participant}"]
+      "%{side#Side} %{client_order_id#Client_order_id} %{symbol#Symbol} \
+       %{size#Int}@%{price} %{time_in_force#Time_in_force} as \
+       %{participant#Participant}"]
   ;;
 end
 

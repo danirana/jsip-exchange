@@ -19,4 +19,3 @@ type t =
 val rests_on_book : t -> bool
 
 val all_str : string
-

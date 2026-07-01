@@ -38,9 +38,10 @@ let%expect_test "participant view " =
      }
      : Fill.t)
   in
-  let alice_view = Fill.to_participant_view fill alice in 
-  [%test_eq: string option] alice_view (Some "You bought 100 AAPL at $150.25");
-  let bob_view = Fill.to_participant_view fill bob in 
+  let alice_view = Fill.to_participant_view fill alice in
+  [%test_eq: string option]
+    alice_view
+    (Some "You bought 100 AAPL at $150.25");
+  let bob_view = Fill.to_participant_view fill bob in
   [%test_eq: string option] bob_view (Some "You sold 100 AAPL at $150.25")
 ;;
-

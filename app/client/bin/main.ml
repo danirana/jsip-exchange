@@ -118,7 +118,10 @@ Continue entering commands as normal.|}];
                loop ())
           | Ok (Cancel cancel_request) ->
             let%bind.Deferred.Or_error () =
-              Rpc.Rpc.dispatch_exn Rpc_protocol.cancel_order_rpc conn cancel_request
+              Rpc.Rpc.dispatch_exn
+                Rpc_protocol.cancel_order_rpc
+                conn
+                cancel_request
             in
             loop ()
           | Ok (Submit request) ->
