@@ -12,6 +12,9 @@ open! Async
 open Jsip_types
 open Jsip_gateway
 open Jsip_market_maker
+module Bot_runtime = Jsip_bot_runtime.Bot_runtime
+module Context = Bot_runtime.Context
+module Market_maker_bot = Market_maker_bot.Market_maker_bot
 
 let default_symbols =
   [ Symbol.of_string "AAPL"
@@ -32,18 +35,20 @@ let connect_as ~where_to_connect participant =
 let seed_market_maker ~where_to_connect =
   let aapl = Symbol.of_string "AAPL" in
   let mm_participant = Participant.of_string "MarketMaker" in
-  let config : Market_maker.Config.t =
-    { participant = mm_participant
-    ; symbol = aapl
+  let config : Market_maker_bot.Config.t =
+    { symbol = aapl
     ; fair_value_cents = 15000
     ; half_spread_cents = 10
     ; size_per_level = 100
     ; num_levels = 5
+    ; client_order_id = Client_order_id.of_int 1
+    ; inventory_skew_cents_per_share = 5
     }
   in
-  let%bind conn = connect_as ~where_to_connect mm_participant in
-  Market_maker.seed_book config conn
-;;
+  (* let%bind conn = connect_as ~where_to_connect mm_participant in
+  let context = Context.create config in 
+  Market_maker_bot.on_start config context  *)
+;; 
 
 (* Two market makers per symbol with offset fair values: MM_High's bids cross
    MM_Low's asks every cycle, producing a steady stream of [Fill] /
@@ -75,6 +80,8 @@ let trade_back_and_forth ~where_to_connect =
     ; half_spread_cents = 5
     ; size_per_level = 25
     ; num_levels = 3
+    ; client_order_id = Client_order_id.of_int 1
+    ; inventory_skew_cents_per_share = 5
     }
   in
   (* Two market makers total, each shared across all symbols — so we open
@@ -99,7 +106,7 @@ let trade_back_and_forth ~where_to_connect =
   let configs = List.concat_map symbol_anchors ~f:configs_for_symbol in
   let cycle () =
     Deferred.List.iter ~how:`Sequential configs ~f:(fun (conn, config) ->
-      Market_maker.seed_book config conn)
+      Market_maker.seed_book config conn ~fair_value_cents:config.fair_value_cents)
   in
   let%map () = cycle () in
   Clock_ns.every cycle_period (fun () -> don't_wait_for (cycle ()))
@@ -149,12 +156,6 @@ let () =
        choose_one
          ~if_nothing_chosen:(Default_to `Do_nothing)
          [ flag
-             "-seed-market-maker"
-             (no_arg_some `Seed_market_maker)
-             ~doc:
-               " pre-seed the book with market maker orders (mutually \
-                exclusive with -trade-back-and-forth)"
-         ; flag
              "-trade-back-and-forth"
              (no_arg_some `Trade_back_and_forth)
              ~doc:

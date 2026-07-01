@@ -116,6 +116,11 @@ Continue entering commands as normal.|}];
                     print_endline
                       [%string "[MD] %{Protocol.format_event event}"]));
                loop ())
+          | Ok (Cancel cancel_request) ->
+            let%bind.Deferred.Or_error () =
+              Rpc.Rpc.dispatch_exn Rpc_protocol.cancel_order_rpc conn cancel_request
+            in
+            loop ()
           | Ok (Submit request) ->
             let%bind.Deferred.Or_error () =
               Rpc.Rpc.dispatch_exn Rpc_protocol.submit_order_rpc conn request

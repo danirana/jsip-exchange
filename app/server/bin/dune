@@ -5,6 +5,7 @@
   jsip_order_book
   jsip_gateway
   jsip_market_maker
+  jsip_bot_runtime
   async
   core)
  (preprocess

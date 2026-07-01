@@ -5,6 +5,6 @@ module T = struct
 end
 
 include T
-
+module Table = Hashtbl.Make (T)
 let of_int i = i
 let to_int t = t
