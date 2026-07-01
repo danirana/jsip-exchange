@@ -197,3 +197,136 @@ let%expect_test "averaging, flipping, and multiple symbols" =
      (realized_cents 80000) (unrealized_cents 75000))
     |}]
 ;;
+
+(* Partial close: sell fewer shares than you hold. This exercises the branch
+   in [Position.apply] that keeps [avg_entry_cents] unchanged on the
+   remainder — realized should book only on the shares actually sold, and the
+   remaining position should still mark from the original entry price. *)
+let%expect_test "partial close leaves the remainder's average untouched" =
+  let pnl =
+    Pnl.apply_fill
+      Pnl.empty
+      (fill
+         ~aggressor:alice
+         ~aggressor_side:Buy
+         ~resting:bob
+         ~price_cents:10000
+         ~size:100
+         ())
+  in
+  let pnl =
+    Pnl.apply_fill
+      pnl
+      (fill
+         ~aggressor:alice
+         ~aggressor_side:Sell
+         ~resting:bob
+         ~price_cents:11000
+         ~size:40
+         ())
+  in
+  let pnl =
+    Pnl.apply_trade_report
+      pnl
+      { symbol = aapl; price = Price.of_int_cents 10500 }
+  in
+  print_summary pnl alice;
+  [%expect
+    {|
+    Alice:
+      AAPL: pos=60 avg=$100.00 ref=$105.00 realized=$400.00 unrealized=$300.00
+      total: realized=$400.00 unrealized=$300.00 net=$700.00
+    |}]
+;;
+
+(* A zero-size fill. The matching engine should never emit one, but the
+   module accepts it — this test documents what actually happens to the
+   position map when it does. *)
+let%expect_test "zero-size fill" =
+  let pnl =
+    Pnl.apply_fill
+      Pnl.empty
+      (fill
+         ~aggressor:alice
+         ~aggressor_side:Buy
+         ~resting:bob
+         ~price_cents:10000
+         ~size:0
+         ())
+  in
+  print_summary pnl alice;
+  [%expect
+    {|
+    Alice:
+      AAPL: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
+      total: realized=$0.00 unrealized=$0.00 net=$0.00
+    |}]
+;;
+
+(* A self-trade: the same participant is both aggressor and resting.
+   Self-trade prevention in the engine means this should never reach us, but
+   [apply_fill] applies both sides regardless — a buy and an offsetting sell
+   at the same price. This documents that they net to nothing. *)
+let%expect_test "self-trade nets to nothing" =
+  let pnl =
+    Pnl.apply_fill
+      Pnl.empty
+      (fill
+         ~aggressor:alice
+         ~aggressor_side:Buy
+         ~resting:alice
+         ~price_cents:10000
+         ~size:100
+         ())
+  in
+  print_summary pnl alice;
+  [%expect
+    {|
+    Alice:
+      AAPL: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
+      total: realized=$0.00 unrealized=$0.00 net=$0.00
+    |}]
+;;
+
+(* DEMONSTRATION, NOT A CORRECTNESS ASSERTION. Uneven share quantities force
+   the integer division in [Position.apply] to truncate the average entry
+   price, and realized P&L is then computed against that truncated average.
+
+   Actual figures: buy 1 @ $10.00 and 2 @ $10.01 => true cost 3002c over 3
+   shares (true average $10.0067), then sell all 3 @ $10.01 => true proceeds
+   3003c, so true realized P&L is 1c. Watch what the code reports instead —
+   the gap is the rounding error, and it is invisible to every other test
+   because their quantities all divide evenly. *)
+let%expect_test "rounding drift in the average entry price" =
+  let buy ~price_cents ~size =
+    fill
+      ~aggressor:alice
+      ~aggressor_side:Buy
+      ~resting:bob
+      ~price_cents
+      ~size
+      ()
+  in
+  let pnl =
+    List.fold
+      [ buy ~price_cents:1000 ~size:1
+      ; buy ~price_cents:1001 ~size:2
+      ; fill
+          ~aggressor:alice
+          ~aggressor_side:Sell
+          ~resting:bob
+          ~price_cents:1001
+          ~size:3
+          ()
+      ]
+      ~init:Pnl.empty
+      ~f:Pnl.apply_fill
+  in
+  print_summary pnl alice;
+  [%expect
+    {|
+    Alice:
+      AAPL: pos=0 avg=- ref=- realized=$0.03 unrealized=$0.00
+      total: realized=$0.03 unrealized=$0.00 net=$0.03
+    |}]
+;;
