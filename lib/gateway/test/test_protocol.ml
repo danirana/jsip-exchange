@@ -154,7 +154,7 @@ let%expect_test "format_event: all event types" =
         ; aggressor_client_order_id = Client_order_id.of_int 1
         ; resting_order_id = Order_id.of_string "1"
         ; resting_participant = Participant.of_string "Bob"
-        ; resting_participant_client_order_id = Client_order_id.of_int 2
+        ; resting_client_order_id = Client_order_id.of_int 2
         }
     ; Order_cancel
         { order_id = Order_id.of_string "3"

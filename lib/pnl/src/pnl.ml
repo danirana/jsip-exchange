@@ -46,6 +46,12 @@ module Position = struct
     then (
       let old_qty = abs t.shares in
       let new_qty = old_qty + qty in
+      (* CR-soon claude for dani.rana: this integer division truncates the
+         average entry price toward zero, and every later close realizes P&L
+         against that truncated basis, so cents can drift after many
+         same-direction adds. Probably fine for the sim, but the [.mli]
+         documents an "average entry price" without mentioning the rounding —
+         either say so there or round-to-nearest here. *)
       let avg_entry_cents =
         ((t.avg_entry_cents * old_qty) + (price_cents * qty)) / new_qty
       in
@@ -102,6 +108,12 @@ let apply_one t ~participant ~symbol ~side ~price_cents ~qty =
   { t with positions = Map.set t.positions ~key ~data:position }
 ;;
 
+(* CR-someday claude for dani.rana: this assumes the two participants differ.
+   A self-fill (same participant on both sides) would send both [apply_one]
+   calls to the same key, booking a spurious realized P&L while netting to
+   flat. Self-trade prevention makes that unreachable today; worth a line
+   tying this code to that invariant so a future STP change can't silently
+   corrupt P&L. *)
 let apply_fill t (fill : Fill.t) =
   let price_cents = Price.to_int_cents fill.price in
   let qty = Size.to_int fill.size in
@@ -187,6 +199,12 @@ module Summary = struct
   ;;
 end
 
+(* CR-someday claude for dani.rana: fully-closed positions stay in
+   [t.positions] with [shares = 0] and reappear in every [summary] (position
+   0, realized carried). That's intended for realized P&L, but the map grows
+   without bound over a long session and is never pruned. If memory matters
+   for the week-3 pathological bots, consider dropping keys that are flat with
+   zero realized, or note here why they're kept. *)
 let summary t participant =
   let per_symbol =
     Map.to_alist t.positions

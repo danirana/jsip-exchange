@@ -79,7 +79,7 @@ let fill_event : Exchange_event.t =
     ; aggressor_client_order_id = Client_order_id.of_int 1
     ; resting_order_id = Order_id.For_testing.of_int 2
     ; resting_participant = bob
-    ; resting_participant_client_order_id = Client_order_id.of_int 2
+    ; resting_client_order_id = Client_order_id.of_int 2
     }
 ;;
 
@@ -121,7 +121,7 @@ let%expect_test "feed_event forwards every event verbatim to on_event" =
       ((fill_id 1) (symbol AAPL) (price 15000) (size 50) (aggressor_order_id 1)
        (aggressor_participant Alice) (aggressor_client_order_id 1)
        (aggressor_side Buy) (resting_order_id 2) (resting_participant Bob)
-       (resting_participant_client_order_id 2)))
+       (resting_client_order_id 2)))
      (Order_accept (order_id 1)
       (request
        ((symbol AAPL) (participant Alice) (side Buy) (price 15000) (size 10)

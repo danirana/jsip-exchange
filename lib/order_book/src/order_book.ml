@@ -159,6 +159,15 @@ let best_bid_offer t : Bbo.t =
    arrived first), then map to [Level.t]. Sorting [Level.t] directly would
    lose the arrival-time tiebreak, since [Level.compare] only knows price and
    size. *)
+(* CR claude for dani.rana: this inverts the arrival-time tiebreak.
+   [Comparable.reverse] flips the *whole* comparison, so at equal prices the
+   base [Order_id.compare order1 order2] (earliest-first) becomes effectively
+   [compare order2 order1] (latest-first) — the opposite of price-time
+   priority. The snapshot test only uses all-distinct prices, so it never
+   exercises the tie and the bug hides. Suggest dropping [reverse] and ranking
+   best-price-first with an earliest-id tiebreak directly. Note the [Buy] and
+   [Sell] arms are byte-identical, since [Price.is_more_aggressive] already
+   folds in [side] — one comparator covers both. *)
 let snapshot_side t (side : Side.t) =
   let compare =
     match side with

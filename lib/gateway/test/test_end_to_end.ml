@@ -214,11 +214,11 @@ let%expect_test "e2e: many clients submit orders concurrently" =
         rpc_submit client (Harness.buy ~price_cents:15010 ~participant ())
         |> Deferred.ignore_m)
     in
-    (* The dispatcher's placeholder [for <Participant>] prints land on stdout
-       in an order that depends on which parallel buy was processed first.
-       Swallow the trace and assert on the deterministic remaining book state
-       instead: 10 sells went in, the 5 buys at $150.10 each hit the
-       lowest-priced sell, so 5 sells should remain. *)
+    (* Each client's session feed flushes its events to stdout in an order
+       that depends on which parallel buy was processed first. Swallow the
+       trace and assert on the deterministic remaining book state instead: 10
+       sells went in, the 5 buys at $150.10 each hit the lowest-priced sell,
+       so 5 sells should remain. *)
     let (_ : string) = [%expect.output] in
     let%bind book = rpc_book seed Harness.aapl in
     let book = Option.value_exn book in

@@ -136,7 +136,7 @@ let sample_events : Exchange_event.t list =
       ; aggressor_client_order_id = Client_order_id.of_int 1
       ; resting_order_id = Order_id.For_testing.of_int 1
       ; resting_participant = bob
-      ; resting_participant_client_order_id = Client_order_id.of_int 2
+      ; resting_client_order_id = Client_order_id.of_int 2
       }
   ; Order_cancel
       { order_id = Order_id.For_testing.of_int 1

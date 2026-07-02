@@ -28,7 +28,7 @@ let fill
   ; aggressor_side
   ; resting_order_id = Order_id.For_testing.of_int 2
   ; resting_participant = resting
-  ; resting_participant_client_order_id = Client_order_id.of_int 2
+  ; resting_client_order_id = Client_order_id.of_int 2
   }
 ;;
 

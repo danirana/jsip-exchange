@@ -12,10 +12,8 @@ val with_server
   -> (server:Exchange_server.t -> port:int -> 'a Deferred.t)
   -> 'a Deferred.t
 
-(** A test client: an open RPC connection to the server. A future revision
-    (once the session-feed RPC and login flow exist) will extend this with a
-    buffered session feed so [rpc_submit] can return the events produced by
-    the just-submitted request. *)
+(** A test client: an open RPC connection to the server, together with a
+    background worker draining its [session_feed_rpc] channel. *)
 type client
 
 (** [connect_as ~port participant] connects to the running exchange server on
@@ -31,8 +29,8 @@ val connection : client -> Rpc.Connection.t
 
 (** Submit an order via RPC. The RPC is one-way: this returns once the server
     has enqueued the request. Participant-targeted events (acceptance, fills,
-    rejection) are currently printed on the server's stdout via the
-    dispatcher's session stub. *)
+    rejection) arrive asynchronously on this client's session feed, which
+    {!connect_as} flushes to stdout prefixed with the participant. *)
 val rpc_submit : client -> Order.Request.t -> unit Deferred.t
 
 (** Query the book via RPC. *)

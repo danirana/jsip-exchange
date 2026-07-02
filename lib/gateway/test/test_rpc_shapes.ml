@@ -84,7 +84,7 @@ let%expect_test "market-data RPC" =
     {|
     (Streaming_rpc (query 296be80010ace497614f92952e5510c4)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response 56cce4ee852f00d9f51b46483bdae93e)
+     (update_response 2487a6fbe1cc9ae8a9306ccec1257362)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()
@@ -99,7 +99,7 @@ let%expect_test "audit-log RPC" =
     {|
     (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response 56cce4ee852f00d9f51b46483bdae93e)
+     (update_response 2487a6fbe1cc9ae8a9306ccec1257362)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()
@@ -132,7 +132,7 @@ let%expect_test "session-feed shapes" =
   [%expect {|
     (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response 56cce4ee852f00d9f51b46483bdae93e)
+     (update_response 2487a6fbe1cc9ae8a9306ccec1257362)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()

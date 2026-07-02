@@ -19,7 +19,7 @@ type t =
   ; aggressor_side : Side.t
   ; resting_order_id : Order_id.t
   ; resting_participant : Participant.t
-  ; resting_participant_client_order_id : Client_order_id.t
+  ; resting_client_order_id : Client_order_id.t
   }
 [@@deriving sexp, bin_io]
 

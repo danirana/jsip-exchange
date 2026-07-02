@@ -24,12 +24,11 @@ val set_up_session : t -> Participant.t -> unit Deferred.t
 val sessions : t -> Session.t Participant.Table.t
 val push_to_session : t -> Participant.t -> Exchange_event.t -> unit
 
-(** Create a dispatcher.
+(** Create a dispatcher with empty subscription registries.
 
     Events whose audience is a single participant (order-lifecycle responses
-    and [Fill] events) are currently handed to a stub [push_to_session] that
-    prints them on stdout, prefixed with the target participant. Wiring this
-    up to real [Session] outbound pipes is a week-2 exercise. *)
+    and [Fill] events) are routed to that participant's {!Session} outbound
+    pipe by [push_to_session]. *)
 val create : unit -> t
 
 (** Subscribe to public market data for one or more [symbols]. The same pipe

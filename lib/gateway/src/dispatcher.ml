@@ -19,7 +19,6 @@ let create () =
 
 let sessions t = t.sessions_table
 
-(* close session *)
 let clean_up_session t session =
   let table = sessions t in
   let participant = Session.participant session in
@@ -125,7 +124,7 @@ let dispatch_event t (event : Exchange_event.t) =
       ; aggressor_client_order_id = _
       ; resting_order_id = _
       ; resting_participant
-      ; resting_participant_client_order_id = _
+      ; resting_client_order_id = _
       } ->
     push_to_session t aggressor_participant event;
     push_to_session t resting_participant event

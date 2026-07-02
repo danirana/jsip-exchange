@@ -206,7 +206,7 @@ let on_event
     let my_client_order_id =
       if is_aggressor
       then fill.aggressor_client_order_id
-      else fill.resting_participant_client_order_id
+      else fill.resting_client_order_id
     in
     update_active_orders config ~my_client_order_id ~fill_size;
     cancel_and_re_quote config context ~new_inventory;

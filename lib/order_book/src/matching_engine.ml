@@ -66,7 +66,7 @@ let rec match_loop ~engine ~book ~order ~fill_id =
           ; aggressor_client_order_id = Order.client_order_id order
           ; resting_order_id = Order.order_id resting
           ; resting_participant = Order.participant resting
-          ; resting_participant_client_order_id =
+          ; resting_client_order_id =
               Order.client_order_id resting
           }
       in
