@@ -30,4 +30,19 @@ val submit : t -> Order.Request.t -> Exchange_event.t list
     on this engine. *)
 val book : t -> Symbol.t -> Order_book.t option
 
+(** How many orders each participant currently has resting across all books,
+    aggregated from each book's incrementally-maintained count. *)
+val resting_by_participant : t -> int Participant.Map.t
+
 val cancel : t -> Participant.t -> Client_order_id.t -> Exchange_event.t list
+
+(** Cancel every order the participant currently has resting, across all
+    books — a mass-cancel / kill switch. Returns the [Order_cancel] events
+    (plus any resulting BBO updates), or [[]] if they have nothing resting.
+    Equivalent to calling {!cancel} on each of the participant's live orders. *)
+val cancel_all_for_participant : t -> Participant.t -> Exchange_event.t list
+
+(** Cancel every resting order on the exchange, across all participants — a
+    whole-book reset. {!cancel_all_for_participant} folded over everyone;
+    returns all the resulting [Order_cancel] (and BBO) events. *)
+val cancel_everything : t -> Exchange_event.t list

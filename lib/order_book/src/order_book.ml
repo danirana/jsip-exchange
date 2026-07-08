@@ -35,6 +35,20 @@ type t =
   ; mutable asks : Order.t Ask_map.t
   ; (* maps Order_id.t directly to its (Side.t, Price.t) location. *)
     mutable id_index : (Side.t * Price.t) Order_id.Table.t
+  ; (* live count of resting orders per participant, maintained in [add] and
+       [remove'] — the only two places the book gains or loses an order. Kept
+       here so the count is O(1) to update instead of an O(book) scan. *)
+    resting_counts : (int Participant.Table.t[@sexp.opaque])
+  ; (* Running sum of [remaining_size] over all resting orders on each side,
+       kept O(1) so a once-per-second dashboard poll doesn't rescan the whole
+       book (which grows without bound under a book-filler). A side's total
+       changes in exactly three places: [add] (+ the order's remaining),
+       [remove'] (- the removed order's remaining), and [record_resting_fill]
+       (- a partial fill the matching engine applies to a resting order in
+       place). Invariant: [total_size_<side>] equals [total_resting_size] a
+       full scan would compute. *)
+    mutable total_size_bid : Size.t
+  ; mutable total_size_ask : Size.t
   }
 [@@deriving sexp_of]
 
@@ -43,6 +57,9 @@ let create symbol =
   ; bids = Bid_map.empty
   ; asks = Ask_map.empty
   ; id_index = Order_id.Table.create ()
+  ; resting_counts = Participant.Table.create ()
+  ; total_size_bid = Size.zero
+  ; total_size_ask = Size.zero
   }
 ;;
 
@@ -53,14 +70,18 @@ let add t order =
   let price = Order.price order in
   let side = Order.side order in
   let key = price, id in
+  Hashtbl.incr t.resting_counts (Order.participant order);
   (* update side maps *)
+  let size = Order.remaining_size order in
   match side with
   | Buy ->
     t.bids <- Map.set t.bids ~key ~data:order;
-    Hashtbl.set t.id_index ~key:id ~data:(Buy, price)
+    Hashtbl.set t.id_index ~key:id ~data:(Buy, price);
+    t.total_size_bid <- Size.( + ) t.total_size_bid size
   | Sell ->
     t.asks <- Map.set t.asks ~key ~data:order;
-    Hashtbl.set t.id_index ~key:id ~data:(Sell, price)
+    Hashtbl.set t.id_index ~key:id ~data:(Sell, price);
+    t.total_size_ask <- Size.( + ) t.total_size_ask size
 ;;
 
 let remove' t id =
@@ -69,18 +90,40 @@ let remove' t id =
   | Some (side, price) ->
     let key = price, id in
     Hashtbl.remove t.id_index id;
-    (match side with
-     | Buy ->
-       let order = Map.find t.bids key in
-       t.bids <- Map.remove t.bids key;
-       order
-     | Sell ->
-       let order = Map.find t.asks key in
-       t.asks <- Map.remove t.asks key;
-       order)
+    let order =
+      match side with
+      | Buy ->
+        let order = Map.find t.bids key in
+        t.bids <- Map.remove t.bids key;
+        order
+      | Sell ->
+        let order = Map.find t.asks key in
+        t.asks <- Map.remove t.asks key;
+        order
+    in
+    Option.iter order ~f:(fun order ->
+      Hashtbl.decr
+        t.resting_counts
+        (Order.participant order)
+        ~remove_if_zero:true;
+      let size = Order.remaining_size order in
+      match side with
+      | Buy -> t.total_size_bid <- Size.( - ) t.total_size_bid size
+      | Sell -> t.total_size_ask <- Size.( - ) t.total_size_ask size);
+    order
 ;;
 
 let remove t id = ignore (remove' t id : Order.t option)
+
+(* The matching engine reduces a resting order's [remaining_size] in place
+   when it partially fills (it does not go through [add]/[remove']), so it
+   reports the reduction here to keep the running side totals accurate. [by]
+   is the fill size; the order's own side selects which total to decrement. *)
+let record_resting_fill t order ~by =
+  match Order.side order with
+  | Buy -> t.total_size_bid <- Size.( - ) t.total_size_bid by
+  | Sell -> t.total_size_ask <- Size.( - ) t.total_size_ask by
+;;
 
 let find t order_id =
   (* find the order's map location coordinates *)
@@ -128,6 +171,18 @@ let count t side =
   | Side.Sell -> Map.length t.asks
 ;;
 
+(* O(1): read the running total maintained in [add]/[remove']/
+   [record_resting_fill], rather than folding the whole side. *)
+let total_resting_size t side =
+  match side with
+  | Side.Buy -> t.total_size_bid
+  | Side.Sell -> t.total_size_ask
+;;
+
+let resting_count_by_participant t =
+  Participant.Map.of_alist_exn (Hashtbl.to_alist t.resting_counts)
+;;
+
 let best_price t side =
   match side with
   | Side.Buy ->
@@ -164,10 +219,10 @@ let best_bid_offer t : Bbo.t =
    base [Order_id.compare order1 order2] (earliest-first) becomes effectively
    [compare order2 order1] (latest-first) — the opposite of price-time
    priority. The snapshot test only uses all-distinct prices, so it never
-   exercises the tie and the bug hides. Suggest dropping [reverse] and ranking
-   best-price-first with an earliest-id tiebreak directly. Note the [Buy] and
-   [Sell] arms are byte-identical, since [Price.is_more_aggressive] already
-   folds in [side] — one comparator covers both. *)
+   exercises the tie and the bug hides. Suggest dropping [reverse] and
+   ranking best-price-first with an earliest-id tiebreak directly. Note the
+   [Buy] and [Sell] arms are byte-identical, since [Price.is_more_aggressive]
+   already folds in [side] — one comparator covers both. *)
 let snapshot_side t (side : Side.t) =
   let compare =
     match side with

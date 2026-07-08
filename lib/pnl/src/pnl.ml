@@ -203,8 +203,8 @@ end
    [t.positions] with [shares = 0] and reappear in every [summary] (position
    0, realized carried). That's intended for realized P&L, but the map grows
    without bound over a long session and is never pruned. If memory matters
-   for the week-3 pathological bots, consider dropping keys that are flat with
-   zero realized, or note here why they're kept. *)
+   for the week-3 pathological bots, consider dropping keys that are flat
+   with zero realized, or note here why they're kept. *)
 let summary t participant =
   let per_symbol =
     Map.to_alist t.positions

@@ -1,0 +1,49 @@
+; Pull the compiled client bundle and page in from the sibling client dir.
+; Depending on these here is what makes building the server build the client.
+
+(rule
+ (target main.bc.js)
+ (deps ../client/main.bc.js)
+ (action
+  (copy %{deps} %{target})))
+
+(rule
+ (target index.html)
+ (deps ../client/index.html)
+ (action
+  (copy %{deps} %{target})))
+
+; Embed both as string constants so the server binary is self-contained.
+
+(rule
+ (target embedded_files.ml)
+ (deps index.html main.bc.js)
+ (action
+  (with-stdout-to
+   %{target}
+   (progn
+    (echo "let index_html = {jsip|")
+    (cat index.html)
+    (echo "|jsip}\n")
+    (echo "let main_js = {jsip|")
+    (cat main.bc.js)
+    (echo "|jsip}\n")))))
+
+(executable
+ (name main)
+ (public_name jsip-dashboard)
+ (package jsip-exchange)
+ (libraries
+  core
+  core_unix.command_unix
+  async
+  cohttp-async
+  async_rpc_websocket
+  jsip_types
+  jsip_gateway
+  jsip_dashboard_protocol
+  jsip_scenario_runner
+  jsip_bots
+  jsip_fundamental)
+ (preprocess
+  (pps ppx_jane)))

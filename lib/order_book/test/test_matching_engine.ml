@@ -521,3 +521,167 @@ let%expect_test "scenario: fill IDs are globally sequential" =
     FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice, cid=2) BUY resting=2(Charlie, cid=1)
     |}]
 ;;
+
+(* ================================================================ *)
+(* Mass cancel (kill switch) *)
+(* ================================================================ *)
+
+let%expect_test "cancel_all_for_participant flattens one participant only" =
+  let t = Harness.create () in
+  let engine = Harness.engine t in
+  (* Alice rests three orders across two books; Bob rests one that does not
+     cross Alice's. *)
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:15000
+       ~participant:Harness.alice
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:14900
+       ~participant:Harness.alice
+       ~client_order_id:(Client_order_id.of_int 2)
+       ());
+  Harness.submit_quiet_
+    t
+    (Harness.sell
+       ~price_cents:20000
+       ~symbol:Harness.tsla
+       ~participant:Harness.alice
+       ~client_order_id:(Client_order_id.of_int 3)
+       ());
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:14800
+       ~participant:Harness.bob
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  print_s
+    [%message
+      "before"
+        ~resting:
+          (Matching_engine.resting_by_participant engine
+           : int Participant.Map.t)];
+  [%expect {| (before (resting ((Alice 3) (Bob 1)))) |}];
+  (* Kill switch: flatten Alice. Every one of her orders is cancelled; Bob is
+     untouched. *)
+  let cancels =
+    Matching_engine.cancel_all_for_participant engine Harness.alice
+  in
+  Harness.print_events ~show:Harness.Show.no_market_data cancels;
+  [%expect
+    {|
+    CANCELLED id=1 AAPL remaining=100 reason=PARTICIPANT_REQUESTED cid=1
+    CANCELLED id=3 TSLA remaining=100 reason=PARTICIPANT_REQUESTED cid=3
+    CANCELLED id=2 AAPL remaining=100 reason=PARTICIPANT_REQUESTED cid=2
+    |}];
+  print_s
+    [%message
+      "after"
+        ~resting:
+          (Matching_engine.resting_by_participant engine
+           : int Participant.Map.t)];
+  [%expect {| (after (resting ((Bob 1)))) |}];
+  (* Flattening again is a no-op — nothing left to cancel. *)
+  let again =
+    Matching_engine.cancel_all_for_participant engine Harness.alice
+  in
+  print_s
+    [%message "second flatten event count" ~n:(List.length again : int)];
+  [%expect {| ("second flatten event count" (n 0)) |}]
+;;
+
+(* [Order_book.total_resting_size] keeps an O(1) running total; the tricky
+   path is a partial fill, which reduces a resting order's size *in place*
+   rather than through add/remove. This checks the total stays exact across a
+   partial fill and the subsequent full fill. *)
+let%expect_test "total_resting_size tracks partial fills" =
+  let t = Harness.create () in
+  let show () =
+    let book =
+      Option.value_exn (Matching_engine.book (Harness.engine t) Harness.aapl)
+    in
+    printf
+      "bid=%d ask=%d\n"
+      (Size.to_int (Order_book.total_resting_size book Side.Buy))
+      (Size.to_int (Order_book.total_resting_size book Side.Sell))
+  in
+  (* Rest a 100-lot ask. *)
+  Harness.submit_quiet_
+    t
+    (Harness.sell ~price_cents:15000 ~participant:Harness.bob ~size:100 ());
+  show ();
+  [%expect {| bid=0 ask=100 |}];
+  (* Aggressor buys 30 at the touch: the resting ask drops to 70 in place. *)
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:15000
+       ~participant:Harness.alice
+       ~size:30
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  show ();
+  [%expect {| bid=0 ask=70 |}];
+  (* Buy the remaining 70: the resting order is fully consumed and removed. *)
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:15000
+       ~participant:Harness.alice
+       ~size:70
+       ~client_order_id:(Client_order_id.of_int 2)
+       ());
+  show ();
+  [%expect {| bid=0 ask=0 |}]
+;;
+
+let%expect_test "cancel_everything clears the whole book, all participants" =
+  let t = Harness.create () in
+  let engine = Harness.engine t in
+  (* Three participants rest orders across two books. *)
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:15000
+       ~participant:Harness.alice
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  Harness.submit_quiet_
+    t
+    (Harness.sell
+       ~price_cents:20000
+       ~symbol:Harness.tsla
+       ~participant:Harness.bob
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  Harness.submit_quiet_
+    t
+    (Harness.buy
+       ~price_cents:14900
+       ~participant:Harness.charlie
+       ~client_order_id:(Client_order_id.of_int 1)
+       ());
+  print_s
+    [%message
+      "before"
+        ~resting:
+          (Matching_engine.resting_by_participant engine
+           : int Participant.Map.t)];
+  [%expect {| (before (resting ((Alice 1) (Bob 1) (Charlie 1)))) |}];
+  (* One call flattens the entire exchange. *)
+  let (_ : Exchange_event.t list) =
+    Matching_engine.cancel_everything engine
+  in
+  print_s
+    [%message
+      "after"
+        ~resting:
+          (Matching_engine.resting_by_participant engine
+           : int Participant.Map.t)];
+  [%expect {| (after (resting ())) |}]
+;;

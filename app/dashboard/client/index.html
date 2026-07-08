@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jsip · exchange health</title>
+    <style>
+      :root {
+        color-scheme: dark;
+
+        --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
+
+        --font-size-xs: 12px;
+        --font-size-sm: 13px;
+        --font-size-md: 15px;
+        --font-size-lg: 17px;
+        --font-size-xl: 26px;
+        --font-size-2xl: 32px;
+
+        --space-xs: 4px;
+        --space-sm: 8px;
+        --space-md: 12px;
+        --space-lg: 16px;
+        --space-xl: 24px;
+        --space-2xl: 32px;
+
+        --radius-sm: 4px;
+        --radius-md: 6px;
+        --radius-lg: 8px;
+        --radius-xl: 12px;
+        --radius-full: 9999px;
+
+        /* Background elevation tiers: 0 = page, 4 = modal/overlay. */
+        --color-bg-0: lch(3% 1 260);
+        --color-bg-1: lch(11% 1.5 280);
+        --color-bg-2: lch(15% 1.5 280);
+        --color-bg-3: lch(20% 1.5 280);
+        --color-bg-4: lch(25% 1.5 280);
+
+        --color-text-primary: lch(97.5% 0.5 240);
+        --color-text-secondary: lch(86% 4 250);
+        --color-text-tertiary: lch(61% 4 260);
+        --color-text-quaternary: lch(44% 3 260);
+
+        --color-border-1: lch(16% 2 260);
+        --color-border-2: lch(23% 1.5 280);
+        --color-border-3: lch(30% 1.5 280);
+
+        --color-accent: lch(62% 50 275);
+        --color-accent-dim: lch(48% 40 280);
+        --color-good: lch(68% 55 150);
+        --color-warn: lch(72% 60 85);
+        --color-bad: lch(60% 62 25);
+
+        /* Trading-desk semantics: the bid side is green, the ask/offer side
+           is red, on every desk. Named apart from good/bad so market colors
+           and health colors can diverge later. The [-soft] tints are for
+           filled backgrounds behind numbers, not the numbers themselves. */
+        --color-bid: lch(70% 58 150);
+        --color-ask: lch(63% 64 25);
+        --color-bid-soft: lch(70% 58 150 / 0.14);
+        --color-ask-soft: lch(63% 64 25 / 0.14);
+
+        /* Layered shadows: each layer roughly doubles the previous offset and
+           blur at low opacity, approximating natural light falloff. */
+        --shadow-1: 0.5px 1px 1px lch(0% 0 0 / 0.35);
+        --shadow-2: 0.5px 1px 1px lch(0% 0 0 / 0.2),
+          1px 2px 2px lch(0% 0 0 / 0.2), 2px 4px 4px lch(0% 0 0 / 0.2),
+          4px 8px 8px lch(0% 0 0 / 0.2);
+      }
+
+      /* The live indicator's breathing dot — a freshness affordance, not
+         decoration: it stops mattering the instant polling stalls. */
+      @keyframes live-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+
+      body {
+        background: var(--color-bg-0);
+        color: var(--color-text-primary);
+        font-family: var(--font-sans);
+        font-size: var(--font-size-sm);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0;
+        scrollbar-width: thin;
+      }
+
+      #app {
+        height: 100%;
+      }
+
+      /* Interactive controls (the bot launcher). A visible focus ring is
+         non-negotiable for keyboard use; hover just brightens in place so the
+         status bar never reflows. */
+      button,
+      select {
+        font-family: inherit;
+      }
+
+      button:hover {
+        filter: brightness(1.12);
+      }
+
+      button:focus-visible,
+      select:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 1px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script defer src="main.bc.js"></script>
+  </body>
+</html>

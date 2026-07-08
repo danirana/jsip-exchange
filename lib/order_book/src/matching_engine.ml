@@ -23,6 +23,20 @@ let create symbols =
 
 let book t symbol = Map.find t.books symbol
 
+let resting_by_participant t =
+  Map.fold
+    t.books
+    ~init:Participant.Map.empty
+    ~f:(fun ~key:_ ~data:book acc ->
+      Map.fold
+        (Order_book.resting_count_by_participant book)
+        ~init:acc
+        ~f:(fun ~key ~data acc ->
+          Map.update acc key ~f:(function
+            | None -> data
+            | Some existing -> existing + data)))
+;;
+
 let mark_id_as_terminal t participant client_order_id =
   match Hashtbl.find t.seen_client_order_ids participant with
   | None -> ()
@@ -47,6 +61,11 @@ let rec match_loop ~engine ~book ~order ~fill_id =
       in
       Order.fill order ~by:fill_size;
       Order.fill resting ~by:fill_size;
+      (* [resting] is on the book; its size just dropped in place, so tell
+         the book to keep its O(1) resting-size total accurate. [order] is
+         the incoming aggressor and is not resting, so its fill needs no such
+         call. *)
+      Order_book.record_resting_fill book resting ~by:fill_size;
       if Order.is_fully_filled resting
       then (
         Order_book.remove book (Order.order_id resting);
@@ -66,8 +85,7 @@ let rec match_loop ~engine ~book ~order ~fill_id =
           ; aggressor_client_order_id = Order.client_order_id order
           ; resting_order_id = Order.order_id resting
           ; resting_participant = Order.participant resting
-          ; resting_client_order_id =
-              Order.client_order_id resting
+          ; resting_client_order_id = Order.client_order_id resting
           }
       in
       let trade_event =
@@ -196,4 +214,38 @@ let cancel t participant client_order_id =
            ]
        in
        cancel_event :: bbo_events)
+;;
+
+(* A kill switch: cancel every order the participant still has resting,
+   across all books, by replaying {!cancel} over each of their live
+   client_order_ids. Reusing [cancel] keeps terminal-state bookkeeping and
+   BBO updates identical to a hand cancel. Used when a bot is stopped or the
+   dashboard is reset. *)
+let cancel_all_for_participant t participant =
+  match Hashtbl.find t.seen_client_order_ids participant with
+  | None -> []
+  | Some id_table ->
+    (* Snapshot the live ids first: [cancel] marks each one terminal
+       (mutating [id_table]), so cancelling while iterating it live would be
+       unsafe. A [Some _] value is a still-resting order; [None] is already
+       terminal. *)
+    let live_client_order_ids =
+      Hashtbl.to_alist id_table
+      |> List.filter_map ~f:(fun (raw_cl_id, order_opt) ->
+        match order_opt with
+        | Some (_ : Order.t) -> Some (Client_order_id.of_int raw_cl_id)
+        | None -> None)
+    in
+    List.concat_map live_client_order_ids ~f:(fun client_order_id ->
+      cancel t participant client_order_id)
+;;
+
+(* The whole-exchange kill switch: cancel every resting order across every
+   participant, by folding {!cancel_all_for_participant} over all of them.
+   The operator "reset the book" path. Keys are snapshotted implicitly by
+   [Hashtbl.keys] before any cancel mutates the table's values. *)
+let cancel_everything t =
+  Hashtbl.keys t.seen_client_order_ids
+  |> List.concat_map ~f:(fun participant ->
+    cancel_all_for_participant t participant)
 ;;

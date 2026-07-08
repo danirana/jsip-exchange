@@ -10,6 +10,10 @@ let all : (module Scenario.S) list =
   ; (module Active_day)
   ; (module Earnings_shock)
   ; (module Flash_crash)
+  ; (module Book_fill)
+  ; (module Cancel_storm)
+  ; (module Order_spam)
+  ; (module Slow_consumers)
   ]
 ;;
 

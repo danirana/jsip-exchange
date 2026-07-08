@@ -15,7 +15,9 @@ open Jsip_types
 
 type t
 
-val create : Participant.t -> t
+(** Create a session whose outbound pipe disconnects the client once
+    [~budget] events are queued unread (see {!push}). *)
+val create : budget:int -> Participant.t -> t
 
 (** The participant this session belongs to. *)
 val participant : t -> Participant.t
@@ -25,7 +27,10 @@ val participant : t -> Participant.t
     session. *)
 val reader : t -> Exchange_event.t Pipe.Reader.t
 
-(** Push an event onto the session's outbound pipe. *)
+(** Push an event onto the session's outbound pipe. If the client has fallen
+    [budget] events behind, the pipe is closed instead (the session is
+    disconnected) — session events are not superseded, so we disconnect
+    rather than drop. *)
 val push : t -> Exchange_event.t -> unit
 
 (** Close the outbound pipe. Subsequent reads on [reader t] will drain any
@@ -34,3 +39,12 @@ val close : t -> unit
 
 (** [true] iff [close] has been called. *)
 val is_closed : t -> bool
+
+(** Determined when the outbound pipe closes — via {!close} or a
+    slow-consumer disconnect in {!push}. Lets the dispatcher free the session
+    from its registry on disconnect. *)
+val closed : t -> unit Deferred.t
+
+(** Number of events currently queued in the outbound pipe waiting for the
+    client to read them. A steadily growing value flags a slow consumer. *)
+val queue_length : t -> int

@@ -78,13 +78,21 @@ let feed_event t event =
   B.on_event config t.context event
 ;;
 
-let start t =
+let start ~stop t =
   let (Packed { bot = (module B); config }) = t.bot in
   let%bind () = B.on_start config t.context in
+  (* Cooperative shutdown that races [stop] against the inter-tick sleep:
+     each iteration waits up to [tick_interval] for a stop. If one arrives
+     first the loop exits immediately without another [on_tick] — so once
+     [start]'s deferred is determined, the bot has provably stopped
+     submitting. That guarantee is what lets a caller flatten the bot with no
+     orders in flight (see {!Jsip_scenario_runner.Runner.start_bot}). *)
   let rec loop () =
-    let%bind () = Clock_ns.after t.tick_interval in
-    let%bind () = B.on_tick config t.context in
-    loop ()
+    match%bind Clock_ns.with_timeout t.tick_interval stop with
+    | `Result () -> return ()
+    | `Timeout ->
+      let%bind () = B.on_tick config t.context in
+      loop ()
   in
   loop ()
 ;;

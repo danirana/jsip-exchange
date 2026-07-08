@@ -12,8 +12,20 @@ type t
 
 (** Start a server on the given port with the given symbols. Returns the
     server handle and the port it is actually listening on (useful when you
-    pass port 0 to get an OS-assigned port). *)
-val start : symbols:Symbol.t list -> port:int -> unit -> t Deferred.t
+    pass port 0 to get an OS-assigned port).
+
+    The optional budgets bound each family of outbound subscriber pipe
+    against a slow consumer; they are passed straight through to
+    {!Dispatcher.create} (see its slow-consumer policy). Omit to accept the
+    defaults. *)
+val start
+  :  ?market_data_budget:int
+  -> ?session_budget:int
+  -> ?audit_budget:int
+  -> symbols:Symbol.t list
+  -> port:int
+  -> unit
+  -> t Deferred.t
 
 (** The port the server is listening on. *)
 val port : t -> int

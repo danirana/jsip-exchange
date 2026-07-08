@@ -15,6 +15,17 @@ val login_rpc : (string, Participant.t Or_error.t) Rpc.Rpc.t
 val session_feed_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
 val cancel_order_rpc : (Client_order_id.t, unit Or_error.t) Rpc.Rpc.t
 
+(** Kill switch: cancel every order the calling session's participant has
+    resting (a deliberate "flatten me"). Query is [unit] — a session can only
+    flatten itself. See
+    {!Jsip_order_book.Matching_engine.cancel_all_for_participant}. *)
+val cancel_all_orders_rpc : (unit, unit Or_error.t) Rpc.Rpc.t
+
+(** Whole-exchange kill switch: cancel every resting order across every
+    participant (an operator "reset the book" — no login required). See
+    {!Jsip_order_book.Matching_engine.cancel_everything}. *)
+val reset_exchange_rpc : (unit, unit Or_error.t) Rpc.Rpc.t
+
 (** Submit an order to the exchange.
 
     This is a one-way RPC. The server enqueues the order and returns as soon
@@ -54,3 +65,15 @@ val market_data_rpc
     production exchange would gate this RPC behind operator-level
     credentials; this simulator does not, but the same intent applies. *)
 val audit_log_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
+
+(** Subscribe to the exchange's infrastructure metrics: one
+    {!Jsip_types.Exchange_stats.t} snapshot per second carrying process
+    memory, submit/cancel latency histograms, and per-symbol book depth.
+
+    This is intentionally separate from {!audit_log_rpc}. The audit log is a
+    record of market events ({!Jsip_types.Exchange_event.t}); this stream is
+    about the exchange process itself. Conflating the two — e.g. by adding
+    metric variants to [Exchange_event.t] — would muddy both. Like
+    [audit_log_rpc] it is an operator-facing monitoring feed, consumed by the
+    dashboard. *)
+val stats_rpc : (unit, Exchange_stats.t, Error.t) Rpc.Pipe_rpc.t

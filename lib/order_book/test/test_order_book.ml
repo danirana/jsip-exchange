@@ -122,6 +122,78 @@ let%expect_test "orders_on_side returns all orders on a side" =
   |}]
 ;;
 
+(* --- total_resting_size --- *)
+
+let%expect_test "total_resting_size sums across every level on a side" =
+  let book = Order_book.create Harness.aapl in
+  (* Two bid levels, so the total must exceed the touch quantity alone. *)
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ~size:100 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:14900 ~order_id:2 ~size:250 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15100 ~order_id:3 ~size:75 ());
+  [%test_result: int]
+    (Order_book.total_resting_size book Buy |> Size.to_int)
+    ~expect:350;
+  [%test_result: int]
+    (Order_book.total_resting_size book Sell |> Size.to_int)
+    ~expect:75;
+  [%test_result: int]
+    (Order_book.total_resting_size (Order_book.create Harness.aapl) Buy
+     |> Size.to_int)
+    ~expect:0
+;;
+
+(* --- resting_count_by_participant --- *)
+
+let%expect_test "resting_count_by_participant tracks add and remove" =
+  let book = Order_book.create Harness.aapl in
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:15000
+       ~order_id:1
+       ~participant:Harness.alice
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:14900
+       ~order_id:2
+       ~participant:Harness.alice
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15100
+       ~order_id:3
+       ~participant:Harness.bob
+       ());
+  print_s
+    [%sexp
+      (Order_book.resting_count_by_participant book : int Participant.Map.t)];
+  [%expect {| ((Alice 2) (Bob 1)) |}];
+  (* Removing one of Alice's two orders drops her to 1; removing Bob's only
+     order drops him out of the map entirely. *)
+  let (_ : Order.t option) =
+    Order_book.For_testing.remove book (Order_id.For_testing.of_int 1)
+  in
+  let (_ : Order.t option) =
+    Order_book.For_testing.remove book (Order_id.For_testing.of_int 3)
+  in
+  print_s
+    [%sexp
+      (Order_book.resting_count_by_participant book : int Participant.Map.t)];
+  [%expect {| ((Alice 1)) |}]
+;;
+
 (* --- find_match --- *)
 
 let%expect_test "find_match returns None for empty book" =

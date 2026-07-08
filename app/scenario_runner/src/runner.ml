@@ -81,8 +81,25 @@ let start_bot ~where_to_connect ~oracle (Bot_spec.T spec) =
        [%log.error "session feed pipe closed with error" (err : Error.t)]);
   print_endline
     [%string "[scenario] starting bot %{spec.participant#Participant}"];
-  don't_wait_for (Bot_runtime.start bot);
-  return ()
+  let stop_requested = Ivar.create () in
+  let tick_loop = Bot_runtime.start ~stop:(Ivar.read stop_requested) bot in
+  don't_wait_for tick_loop;
+  let stop () =
+    (* A deliberate stop is a kill switch, not a crash: halt the tick loop,
+       flatten everything the bot has resting so it leaves no footprint, then
+       drop the connection. We must await [tick_loop] *before* flattening:
+       otherwise a final in-flight [on_tick] could rest new orders just after
+       the mass-cancel runs, and they would survive the stop. Awaiting it
+       guarantees no submit is in flight when we cancel. Best-effort on the
+       flatten itself — we disconnect either way. *)
+    Ivar.fill_if_empty stop_requested ();
+    let%bind () = tick_loop in
+    let%bind (_ : unit Or_error.t Or_error.t) =
+      Rpc.Rpc.dispatch Rpc_protocol.cancel_all_orders_rpc connection ()
+    in
+    Rpc.Connection.close connection
+  in
+  return stop
 ;;
 
 let run (config : Scenario_config.t) ~port ~seed =
@@ -101,10 +118,13 @@ let run (config : Scenario_config.t) ~port ~seed =
   don't_wait_for (Fundamental_oracle.start oracle);
   don't_wait_for (News_injector.start injector);
   let%bind () =
-    Deferred.List.iter
-      ~how:`Parallel
-      config.bots
-      ~f:(start_bot ~where_to_connect ~oracle)
+    Deferred.List.iter ~how:`Parallel config.bots ~f:(fun spec ->
+      (* [run] never stops its bots; the returned stop handle is only for
+         callers that manage a bot's lifetime (the dashboard launcher). *)
+      let%map (_ : unit -> unit Deferred.t) =
+        start_bot ~where_to_connect ~oracle spec
+      in
+      ())
   in
   Exchange_server.close_finished server
 ;;

@@ -25,6 +25,12 @@ val add : t -> Order.t -> unit
 (** Remove an order by ID. *)
 val remove : t -> Order_id.t -> unit
 
+(** Tell the book that a resting order was partially filled by [~by], so it
+    can keep {!total_resting_size} accurate. The matching engine reduces a
+    resting order's remaining size in place (without {!add}/{!remove}), so it
+    must call this with the same [~by] it fills; [order] supplies the side. *)
+val record_resting_fill : t -> Order.t -> by:Size.t -> unit
+
 (** Find a resting order by ID. *)
 val find : t -> Order_id.t -> Order.t option
 
@@ -50,6 +56,17 @@ val is_empty : t -> bool
 
 (** Number of resting orders on a given side. *)
 val count : t -> Side.t -> int
+
+(** Total remaining size summed over every resting order on a side, across
+    all price levels. Contrast {!best_bid_offer}, whose per-side size is only
+    the quantity resting at the touch. *)
+val total_resting_size : t -> Side.t -> Size.t
+
+(** How many orders each participant currently has resting on this book,
+    maintained incrementally as orders are added and removed (O(1) to keep up
+    to date rather than an O(book) scan). Participants with no resting orders
+    are absent from the map. *)
+val resting_count_by_participant : t -> int Participant.Map.t
 
 (** The best bid and offer: the most aggressive price and total size on each
     side. *)

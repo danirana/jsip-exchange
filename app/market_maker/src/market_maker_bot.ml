@@ -23,7 +23,10 @@ module Config = struct
     ; half_spread_cents : int
     ; size_per_level : int
     ; num_levels : int
-    ; client_order_id : Client_order_id.t
+    ; mutable client_order_id : Client_order_id.t
+    (** Base id for the next ladder; [seed_book] advances it by one full ladder
+        each call, so every re-quote uses fresh ids that the exchange won't
+        reject as duplicates of already-terminal ones. *)
     ; inventory_skew_cents_per_share : int
     ; inventory : int Symbol.Table.t
     ; active_orders : int Client_order_id.Table.t
@@ -72,6 +75,12 @@ let seed_book (config : Config.t) (context : Context.t) ~fair_value_cents =
           (msg : Error.t)]
   in
   let base_id = Client_order_id.to_int config.client_order_id in
+  (* Advance the base by one whole ladder (two ids per level) so the next
+     re-quote — after a fill, or after the book is reset out from under us —
+     mints ids the exchange hasn't seen, instead of colliding with the ones we
+     just cancelled. *)
+  config.client_order_id
+  <- Client_order_id.of_int (base_id + (config.num_levels * 2));
   Deferred.List.iter
     ~how:`Parallel
     (List.init config.num_levels ~f:Fn.id)
@@ -173,7 +182,15 @@ let on_start (config : Config.t) (context : Context.t) =
   seed_book config context ~fair_value_cents:config.fair_value_cents
 ;;
 
-let on_tick (_config : Config.t) (_context : Context.t) = Deferred.unit
+(* Keep the ladder alive. Fills re-quote via [cancel_and_re_quote]; this
+   handles the ladder being cancelled out from under us — e.g. an operator
+   exchange reset — by re-seeding around fair value whenever we hold no live
+   orders. [seed_book] advances the id base, so the re-seed is accepted. *)
+let on_tick (config : Config.t) (context : Context.t) =
+  if Hashtbl.is_empty config.active_orders
+  then seed_book config context ~fair_value_cents:config.fair_value_cents
+  else Deferred.unit
+;;
 
 let on_event
   (config : Config.t)

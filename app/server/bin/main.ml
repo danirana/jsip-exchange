@@ -92,7 +92,9 @@ let seed_market_maker ~where_to_connect =
        ()
      | Rpc.Pipe_close_reason.Error err ->
        [%log.error "session feed pipe closed with error" (err : Error.t)]);
-  don't_wait_for (Bot_runtime.start bot);
+  (* The seed market maker runs for the life of the server; it is never
+     stopped. *)
+  don't_wait_for (Bot_runtime.start ~stop:(Deferred.never ()) bot);
   return ()
 ;;
 

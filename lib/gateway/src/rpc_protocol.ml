@@ -30,6 +30,31 @@ let cancel_order_rpc =
     ~include_in_error_count:Only_on_exn
 ;;
 
+(* Kill switch: cancel every order the calling session's participant has
+   resting. A deliberate "flatten me" — used when a bot is stopped so it
+   leaves no footprint in the book. Query is [unit]: you can only flatten
+   yourself, the session you're logged in on. *)
+let cancel_all_orders_rpc =
+  Rpc.Rpc.create
+    ~name:"cancel-all-orders"
+    ~version:0
+    ~bin_query:Unit.bin_t
+    ~bin_response:[%bin_type_class: unit Or_error.t]
+    ~include_in_error_count:Only_on_exn
+;;
+
+(* Whole-exchange kill switch: cancel every resting order across every
+   participant — an operator "reset the book" action, not tied to any one
+   session, so it needs no login. Used by the dashboard's "reset exchange". *)
+let reset_exchange_rpc =
+  Rpc.Rpc.create
+    ~name:"reset-exchange"
+    ~version:0
+    ~bin_query:Unit.bin_t
+    ~bin_response:[%bin_type_class: unit Or_error.t]
+    ~include_in_error_count:Only_on_exn
+;;
+
 let submit_order_rpc =
   Rpc.Rpc.create
     ~name:"submit-order"
@@ -64,6 +89,16 @@ let audit_log_rpc =
     ~version:1
     ~bin_query:Unit.bin_t
     ~bin_response:Exchange_event.bin_t
+    ~bin_error:Error.bin_t
+    ()
+;;
+
+let stats_rpc =
+  Rpc.Pipe_rpc.create
+    ~name:"stats"
+    ~version:1
+    ~bin_query:Unit.bin_t
+    ~bin_response:Exchange_stats.bin_t
     ~bin_error:Error.bin_t
     ()
 ;;

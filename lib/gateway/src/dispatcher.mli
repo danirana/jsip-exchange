@@ -24,12 +24,42 @@ val set_up_session : t -> Participant.t -> unit Deferred.t
 val sessions : t -> Session.t Participant.Table.t
 val push_to_session : t -> Participant.t -> Exchange_event.t -> unit
 
+(** Build a {!Session.t} carrying this dispatcher's configured session
+    budget, so every session shares one slow-consumer disconnect threshold.
+    The caller registers it (in {!sessions} and its connection state). *)
+val create_session : t -> Participant.t -> Session.t
+
 (** Create a dispatcher with empty subscription registries.
 
     Events whose audience is a single participant (order-lifecycle responses
     and [Fill] events) are routed to that participant's {!Session} outbound
-    pipe by [push_to_session]. *)
-val create : unit -> t
+    pipe by [push_to_session].
+
+    {2 Slow-consumer policy}
+
+    Every outbound pipe is bounded so one slow reader can't grow the
+    exchange's memory without limit. The policy differs by family, because
+    the value of the data does:
+
+    - {b Market data} is a state stream — the newest BBO supersedes the last
+      — so a full buffer {b drops the oldest} event. The slow subscriber
+      keeps the freshest quotes with a gap in history. Bounded by
+      [market_data_budget].
+
+    - {b Session} and {b audit} are event streams whose records are not
+      superseded (a missed [Fill] is a silently wrong position). A subscriber
+      that falls [session_budget] / [audit_budget] behind is instead
+      {b disconnected} — its pipe is closed and it must reconnect and resync,
+      which is honest about the failure rather than losing events unnoticed.
+
+    Each budget defaults to a sensible constant; pass explicit values to
+    tune. *)
+val create
+  :  ?market_data_budget:int
+  -> ?session_budget:int
+  -> ?audit_budget:int
+  -> unit
+  -> t
 
 (** Subscribe to public market data for one or more [symbols]. The same pipe
     receives events for every requested symbol; the dispatcher avoids
@@ -57,6 +87,11 @@ val subscribe_audit : t -> Exchange_event.t Pipe.Reader.t
 
     Each session lookup is O(1) and independent of subscriber count. *)
 val dispatch : t -> Exchange_event.t list -> unit
+
+(** Worst current queue depth across each family of outbound subscriber pipe
+    (per-symbol market data, audit, per-session), plus which session is
+    furthest behind. A slow consumer shows up here as a growing queue. *)
+val pipe_occupancy : t -> Exchange_stats.Pipe_occupancy.t
 
 module For_testing : sig
   val audit_subscriber_count : t -> int

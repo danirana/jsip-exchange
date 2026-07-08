@@ -93,9 +93,11 @@ val feed_event : t -> Exchange_event.t -> unit Deferred.t
 (** The bot's identity (for routing/debugging). *)
 val participant : t -> Participant.t
 
-(** Run [on_tick] in a forever-loop on the configured interval. Returns a
-    never-determined [Deferred.t]. *)
-val start : t -> unit Deferred.t
+(** Run [on_tick] on the configured interval until [stop] is determined,
+    checked at the top of each iteration (so the bot bows out within one tick
+    of a stop request). Pass [Deferred.never ()] for a bot that runs for the
+    life of the process. *)
+val start : stop:unit Deferred.t -> t -> unit Deferred.t
 
 module For_testing : sig
   val context_of : t -> Context.t
