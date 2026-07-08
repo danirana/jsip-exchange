@@ -101,8 +101,7 @@ module Launcher = struct
     let on_reset_exchange _ =
       let%bind.Effect outcome = reset_exchange () in
       set_result
-        (Some
-           (outcome_message outcome ~ok:"exchange reset — book cleared"))
+        (Some (outcome_message outcome ~ok:"exchange reset — book cleared"))
     in
     let options =
       List.map Protocol.Bot_kind.all ~f:(fun kind ->

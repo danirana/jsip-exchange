@@ -200,8 +200,8 @@ let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
                (* Operator reset: flatten the entire book across every
                   participant, then fan the cancels out to subscribers. No
                   login check — this is a whole-exchange action, not a
-                  per-session one. The seed market maker re-quotes on its next
-                  tick, so the book refills with baseline liquidity. *)
+                  per-session one. The seed market maker re-quotes on its
+                  next tick, so the book refills with baseline liquidity. *)
                let events = Matching_engine.cancel_everything engine in
                Dispatcher.dispatch dispatcher events;
                return (Ok ()))

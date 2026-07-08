@@ -27,9 +27,9 @@ val stop_bot_rpc : (Participant.t, unit Or_error.t) Rpc.Rpc.t
     back to just the exchange's own liquidity. *)
 val reset_bots_rpc : (unit, unit Or_error.t) Rpc.Rpc.t
 
-(** Full exchange wipe: stop every launched bot AND cancel every resting order
-    on the exchange (including the seed market maker and leftover junk),
-    returning to a fresh book without a reboot. *)
+(** Full exchange wipe: stop every launched bot AND cancel every resting
+    order on the exchange (including the seed market maker and leftover
+    junk), returning to a fresh book without a reboot. *)
 val reset_exchange_rpc : (unit, unit Or_error.t) Rpc.Rpc.t
 
 (** The bots the dashboard is currently tracking. Polled by the client to

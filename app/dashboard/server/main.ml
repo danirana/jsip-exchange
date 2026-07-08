@@ -286,12 +286,13 @@ let reset_exchange ~where_to_connect () : unit Or_error.t Deferred.t =
          [%message "reset: could not connect to exchange" (exn : Exn.t)])
   | Ok connection ->
     let%bind dispatched =
-      Rpc.Rpc.dispatch Jsip_gateway.Rpc_protocol.reset_exchange_rpc connection ()
+      Rpc.Rpc.dispatch
+        Jsip_gateway.Rpc_protocol.reset_exchange_rpc
+        connection
+        ()
     in
     let%map () = Rpc.Connection.close connection in
-    (match dispatched with
-     | Ok result -> result
-     | Error error -> Error error)
+    (match dispatched with Ok result -> result | Error error -> Error error)
 ;;
 
 let implementations ~where_to_connect =
