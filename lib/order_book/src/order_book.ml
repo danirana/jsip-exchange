@@ -30,7 +30,7 @@ module Ask_map = Map.Make (Ask_key)
 module Bid_map = Map.Make (Bid_key)
 
 type t =
-  { symbol : Symbol.t (* Separate maps for bids and asks *)
+  { symbol : Symbol_id.t (* Separate maps for bids and asks *)
   ; mutable bids : Order.t Bid_map.t
   ; mutable asks : Order.t Ask_map.t
   ; (* maps Order_id.t directly to its (Side.t, Price.t) location. *)
@@ -209,49 +209,29 @@ let best_bid_offer t : Bbo.t =
   { bid = best_level t Buy; ask = best_level t Sell }
 ;;
 
-(* Sort the underlying [Order.t] list with a comparator built from
-   [Price.is_more_aggressive] and [Order_id.compare] (lower order id =
-   arrived first), then map to [Level.t]. Sorting [Level.t] directly would
-   lose the arrival-time tiebreak, since [Level.compare] only knows price and
-   size. *)
-(* CR claude for dani.rana: this inverts the arrival-time tiebreak.
-   [Comparable.reverse] flips the *whole* comparison, so at equal prices the
-   base [Order_id.compare order1 order2] (earliest-first) becomes effectively
-   [compare order2 order1] (latest-first) — the opposite of price-time
-   priority. The snapshot test only uses all-distinct prices, so it never
-   exercises the tie and the bug hides. Suggest dropping [reverse] and
-   ranking best-price-first with an earliest-id tiebreak directly. Note the
-   [Buy] and [Sell] arms are byte-identical, since [Price.is_more_aggressive]
-   already folds in [side] — one comparator covers both. *)
-let snapshot_side t (side : Side.t) =
-  let compare =
-    match side with
-    | Buy ->
-      Comparable.reverse (fun order1 order2 ->
-        let order1_price = Order.price order1 in
-        let order2_price = Order.price order2 in
-        if Price.equal order1_price order2_price
-        then Order_id.compare (Order.order_id order1) (Order.order_id order2)
-        else if Price.is_more_aggressive
-                  side
-                  ~price:order1_price
-                  ~than:order2_price
-        then 1
-        else -1)
-    | Sell ->
-      Comparable.reverse (fun order1 order2 ->
-        let order1_price = Order.price order1 in
-        let order2_price = Order.price order2 in
-        if Price.equal order1_price order2_price
-        then Order_id.compare (Order.order_id order1) (Order.order_id order2)
-        else if Price.is_more_aggressive
-                  side
-                  ~price:order1_price
-                  ~than:order2_price
-        then 1
-        else -1)
-  in
-  orders_on_side t side |> List.sort ~compare |> List.map ~f:Level.of_order
+(* Aggregate this side's resting orders into one [Level.t] per distinct price
+   (total size at that price), matching the [Book.t] contract and agreeing
+   with [best_bid_offer], which aggregates the top level the same way.
+
+   [orders_on_side] already yields the orders in book order — asks ascending
+   (lowest price first), bids descending (the [Bid_map] key reverses price) —
+   with equal-price orders adjacent. So neither side needs a sort or a
+   reverse: [List.group] splits the already-ordered list into runs of equal
+   price (one linear pass), and each run collapses to a level whose size is
+   the sum of the run's remaining sizes. *)
+let snapshot_side t (side : Side.t) : Level.t list =
+  orders_on_side t side
+  |> List.group ~break:(fun order1 order2 ->
+    not (Price.equal (Order.price order1) (Order.price order2)))
+  |> List.map ~f:(fun orders_at_price ->
+    (* [List.group] never yields an empty group, so [hd_exn] is safe; every
+       order in the run shares one price. *)
+    let price = Order.price (List.hd_exn orders_at_price) in
+    let size =
+      List.fold orders_at_price ~init:Size.zero ~f:(fun total order ->
+        Size.( + ) total (Order.remaining_size order))
+    in
+    { Level.price; size })
 ;;
 
 let snapshot t =

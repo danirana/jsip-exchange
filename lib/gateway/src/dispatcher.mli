@@ -21,7 +21,20 @@ type t
 
 val clean_up_session : t -> Session.t -> unit Deferred.t
 val set_up_session : t -> Participant.t -> unit Deferred.t
-val sessions : t -> Session.t Participant.Table.t
+
+(** Intern a participant name to its stable server-side id, minting one on
+    first login. The id is what the session table is keyed by. *)
+val intern : t -> Participant.t -> Participant_id.t
+
+(** The currently-connected sessions, keyed by interned {!Participant_id.t}
+    (not by name). Callers that only have a name should prefer
+    {!find_session}. *)
+val sessions : t -> Session.t Participant_id.Table.t
+
+(** The session for a participant name, if currently connected — resolves the
+    name to its id internally. *)
+val find_session : t -> Participant.t -> Session.t option
+
 val push_to_session : t -> Participant.t -> Exchange_event.t -> unit
 
 (** Build a {!Session.t} carrying this dispatcher's configured session
@@ -68,7 +81,7 @@ val create
     closed. *)
 val subscribe_market_data
   :  t
-  -> Symbol.t list
+  -> Symbol_id.t list
   -> Exchange_event.t Pipe.Reader.t
 
 (** Subscribe to the full unfiltered event firehose. Intended for the monitor

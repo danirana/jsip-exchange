@@ -4,7 +4,7 @@ open Jsip_types
 let%expect_test "notional_cents: price * size" =
   let fill =
     ({ fill_id = 1
-     ; symbol = Symbol.of_string "AAPL"
+     ; symbol = Symbol_id.of_int 0
      ; price = Price.of_int_cents 15025
      ; size = Size.of_int 100
      ; aggressor_order_id = Order_id.of_string "1"
@@ -25,7 +25,7 @@ let%expect_test "participant view " =
   let bob = Participant.of_string "Bob" in
   let fill =
     ({ fill_id = 1
-     ; symbol = Symbol.of_string "AAPL"
+     ; symbol = Symbol_id.of_int 0
      ; price = Price.of_int_cents 15025
      ; size = Size.of_int 100
      ; aggressor_order_id = Order_id.of_string "1"
@@ -39,9 +39,7 @@ let%expect_test "participant view " =
      : Fill.t)
   in
   let alice_view = Fill.to_participant_view fill alice in
-  [%test_eq: string option]
-    alice_view
-    (Some "You bought 100 AAPL at $150.25");
+  [%test_eq: string option] alice_view (Some "You bought 100 0 at $150.25");
   let bob_view = Fill.to_participant_view fill bob in
-  [%test_eq: string option] bob_view (Some "You sold 100 AAPL at $150.25")
+  [%test_eq: string option] bob_view (Some "You sold 100 0 at $150.25")
 ;;

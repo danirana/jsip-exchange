@@ -1,8 +1,46 @@
 open! Core
 open Jsip_types
 
+(* The engine's fixed symbol set as a flat book array. At [create], the [i]th
+   entry in the symbol list becomes symbol id [i] and its book is stored at
+   [books.(i)]; the set never grows, so [books] is a plain fixed-size array
+   and ids stay stable for the engine's lifetime.
+
+   In phase 1 the id *is* the wire identity ([Symbol_id.t]): it arrives from
+   the client already interned, so a lookup is a bounds check plus a direct
+   O(1) array index — no name hashing at all. The engine keeps no name->id
+   map at all; [create] receives the dense id list only to learn how many
+   books to allocate. *)
+module Symbol_registry = struct
+  type t = { books : Order_book.t array } [@@deriving sexp_of]
+
+  let create symbols =
+    let books =
+      List.mapi symbols ~f:(fun id _symbol ->
+        Order_book.create (Symbol_id.of_int id))
+      |> Array.of_list
+    in
+    { books }
+  ;;
+
+  (* The book for symbol [id], or [None] if [id] is not a symbol traded on
+     this engine. This is the ONE place an untrusted [Symbol_id.t] from the
+     wire meets the book array, so it is the exchange's single
+     symbol-validation authority: a client can put any integer on the wire,
+     and an out-of-range id must become [None] (which [submit] turns into an
+     "unknown symbol" reject and [book] into "no such book") — never a raw
+     [Array.get] that crashes the engine. *)
+  let find t (id : Symbol_id.t) : Order_book.t option =
+    let i = Symbol_id.to_int id in
+    if 0 <= i && i < Array.length t.books then Some t.books.(i) else None
+  ;;
+
+  (* Every book, in id order — for engine-wide folds. *)
+  let all_books t = t.books
+end
+
 type t =
-  { books : Order_book.t Symbol.Map.t
+  { book_registry : Symbol_registry.t
   ; order_id_gen : Order_id.Generator.t
   ; mutable next_fill_id : int
   ; seen_client_order_ids : Order.t Option.t Int.Table.t Participant.Table.t
@@ -10,24 +48,20 @@ type t =
 [@@deriving sexp_of]
 
 let create symbols =
-  let books =
-    List.map symbols ~f:(fun sym -> sym, Order_book.create sym)
-    |> Symbol.Map.of_alist_exn
-  in
-  { books
+  { book_registry = Symbol_registry.create symbols
   ; order_id_gen = Order_id.Generator.create ()
   ; next_fill_id = 1
   ; seen_client_order_ids = Participant.Table.create ()
   }
 ;;
 
-let book t symbol = Map.find t.books symbol
+let book t symbol = Symbol_registry.find t.book_registry symbol
 
 let resting_by_participant t =
-  Map.fold
-    t.books
+  Array.fold
+    (Symbol_registry.all_books t.book_registry)
     ~init:Participant.Map.empty
-    ~f:(fun ~key:_ ~data:book acc ->
+    ~f:(fun acc book ->
       Map.fold
         (Order_book.resting_count_by_participant book)
         ~init:acc
@@ -116,7 +150,7 @@ let submit t (request : Order.Request.t) =
         { request; reason = "duplicate client_order_id" }
     ]
   else (
-    match Map.find t.books request.symbol with
+    match Symbol_registry.find t.book_registry request.symbol with
     | None ->
       [ Exchange_event.Order_reject { request; reason = "unknown symbol" } ]
     | Some book ->
@@ -185,7 +219,7 @@ let cancel t participant client_order_id =
     ]
   | Some order ->
     let symbol = Order.symbol order in
-    (match Map.find t.books symbol with
+    (match Symbol_registry.find t.book_registry symbol with
      | None ->
        [ Exchange_event.Cancel_reject
            { participant; client_order_id; reason = "unknown symbol" }

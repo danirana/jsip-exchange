@@ -4,7 +4,9 @@ open Jsip_types
 open Jsip_gateway
 
 let with_server ~symbols f =
-  let%bind server = Exchange_server.start ~symbols ~port:0 () in
+  (* Tests speak in ids, so name each id by its integer via [of_ids]. *)
+  let directory = Symbol_directory.of_ids symbols in
+  let%bind server = Exchange_server.start ~directory ~port:0 () in
   let port = Exchange_server.port server in
   Monitor.protect
     (fun () -> f ~server ~port)

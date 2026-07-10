@@ -2,7 +2,7 @@ open! Core
 
 type t =
   { fill_id : int
-  ; symbol : Symbol.t
+  ; symbol : Symbol_id.t
   ; price : Price.t
   ; size : Size.t
   ; aggressor_order_id : Order_id.t
@@ -33,7 +33,7 @@ let to_string
   sprintf
     "fill_id=%d %s %s x%d aggressor=%s(%s, cid=%s) %s resting=%s(%s, cid=%s)"
     fill_id
-    (Symbol.to_string symbol)
+    (Symbol_id.to_string symbol)
     (Price.to_string_dollar price)
     (Size.to_int size)
     (Order_id.to_string aggressor_order_id)
@@ -60,7 +60,7 @@ let to_participant_view t specific_participant =
       match side with Side.Buy -> "bought" | Side.Sell -> "sold"
     in
     let action_size = Size.to_int t.size in
-    let symbol_str = Symbol.to_string t.symbol in
+    let symbol_str = Symbol_id.to_string t.symbol in
     let price_str = Price.to_string_dollar t.price in
     [%string
       "You %{action} %{action_size#Int} %{symbol_str} at %{price_str}"])

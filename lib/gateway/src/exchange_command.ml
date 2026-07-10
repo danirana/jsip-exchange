@@ -22,11 +22,11 @@ end
 
 type t =
   | Submit of Order.Request.t
-  | Book of Symbol.t
-  | Subscribe of Symbol.t
+  | Book of Symbol_id.t
+  | Subscribe of Symbol_id.t
   | Cancel of Client_order_id.t
 
-let parse ?default_participant line =
+let parse ?default_participant ~resolve_symbol line =
   (* trims the input line and splits it by spaces *)
   let line = String.strip line in
   if String.is_empty line
@@ -51,6 +51,20 @@ let parse ?default_participant line =
             "unknown command: %s (expected BUY SELL BOOK SUBSCRIBE or \
              CANCEL)"
             verb_str
+      in
+      (* Turn a typed symbol token — a human NAME like "AAPL" — into the id
+         that travels on the wire, by consulting the directory the client
+         fetched at connect. This is the name->id half of the directory (the
+         id->name half happens at render time). Both the BUY/SELL and
+         BOOK/SUBSCRIBE branches resolve their symbol through here. *)
+      let resolve_symbol_token symbol_str : Symbol_id.t Or_error.t =
+        if String.is_empty symbol_str
+        then Or_error.error_string "expected a symbol name"
+        else (
+          let name = Symbol.of_string symbol_str in
+          match resolve_symbol name with
+          | Some id -> Or_error.return id
+          | None -> Or_error.errorf "unknown symbol: %s" symbol_str)
       in
       (match verb with
        (* Handle the text protocol CANCEL pattern command *)
@@ -96,14 +110,7 @@ let parse ?default_participant line =
                   price_str
                   (Exn.to_string exn)
             in
-            let%bind symbol =
-              try Or_error.return (Symbol.of_string symbol_str) with
-              | exn ->
-                Or_error.errorf
-                  "invalid symbol: %s\nexception: %s"
-                  symbol_str
-                  (Exn.to_string exn)
-            in
+            let%bind symbol = resolve_symbol_token symbol_str in
             let%bind time_in_force =
               try
                 Or_error.return (Time_in_force.of_string time_in_force_str)
@@ -160,14 +167,7 @@ let parse ?default_participant line =
                 verb_str
                 (String.concat ~sep:" " rest_of_args)
             else (
-              let%bind symbol =
-                try Or_error.return (Symbol.of_string symbol_str) with
-                | exn ->
-                  Or_error.errorf
-                    "invalid symbol: %s\nexception: %s"
-                    symbol_str
-                    (Exn.to_string exn)
-              in
+              let%bind symbol = resolve_symbol_token symbol_str in
               match verb with
               | Book -> Or_error.return (Book symbol)
               | Subscribe -> Or_error.return (Subscribe symbol)

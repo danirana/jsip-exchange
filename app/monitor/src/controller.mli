@@ -38,11 +38,12 @@ module Display : sig
   type t =
     { title : string
     ; counter : string
-    ; bbo_panel : (Symbol.t * Bbo.t) list
-    (** Snapshot of the latest BBO per symbol, in first-appearance order.
-        Always visible in the chrome — independent of the event-list filters
-        — so the user can keep an eye on the live market while drilling into
-        specific event categories. *)
+    ; bbo_panel : (string * Bbo.t) list
+    (** Snapshot of the latest BBO per symbol, in first-appearance order,
+        with each symbol pre-rendered to its display label (name if the
+        directory knows it, else the id). Always visible in the chrome —
+        independent of the event-list filters — so the user can keep an eye
+        on the live market while drilling into specific event categories. *)
     ; category_chips : Chip.t list
     ; substring_field : substring_field
     ; visible_events : (Event_log.Color.t * string) list
@@ -74,5 +75,7 @@ val should_exit : t -> bool
     [k], arrow keys) to a scroller or treat them as buffer input. *)
 val is_editing_substring : t -> bool
 
-(** Render the current state as [Display.t]. *)
-val display : t -> Display.t
+(** Render the current state as [Display.t]. [render_symbol] resolves symbol
+    ids to display labels (the monitor passes {!Symbol_directory.label} over
+    the directory it fetched at connect); it defaults to the integer id. *)
+val display : ?render_symbol:(Symbol_id.t -> string) -> t -> Display.t

@@ -3,7 +3,7 @@ open Jsip_types
 
 module Trade_report = struct
   type t =
-    { symbol : Symbol.t
+    { symbol : Symbol_id.t
     ; price : Price.t
     }
   [@@deriving sexp, bin_io]
@@ -80,7 +80,7 @@ end
 (* Positions are keyed by (participant, symbol). *)
 module Key = struct
   module T = struct
-    type t = Participant.t * Symbol.t [@@deriving compare, sexp]
+    type t = Participant.t * Symbol_id.t [@@deriving compare, sexp]
   end
 
   include T
@@ -89,13 +89,13 @@ end
 
 type t =
   { positions : Position.t Map.M(Key).t
-  ; reference_cents : int Map.M(Symbol).t
+  ; reference_cents : int Map.M(Symbol_id).t
   }
 [@@deriving sexp_of]
 
 let empty =
   { positions = Map.empty (module Key)
-  ; reference_cents = Map.empty (module Symbol)
+  ; reference_cents = Map.empty (module Symbol_id)
   }
 ;;
 
@@ -148,7 +148,7 @@ let apply_trade_report t (report : Trade_report.t) =
 module Summary = struct
   module Per_symbol = struct
     type t =
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; position : int
       ; average_entry_price : Price.t option
       ; reference_price : Price.t option
@@ -185,7 +185,7 @@ module Summary = struct
     let rows =
       List.map t.per_symbol ~f:(fun (s : Per_symbol.t) ->
         [%string
-          "  %{s.symbol#Symbol}: pos=%{s.position#Int} avg=%{price_opt \
+          "  %{s.symbol#Symbol_id}: pos=%{s.position#Int} avg=%{price_opt \
            s.average_entry_price} ref=%{price_opt s.reference_price} \
            realized=%{dollars s.realized_cents} unrealized=%{dollars \
            s.unrealized_cents}"])

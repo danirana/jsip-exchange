@@ -85,9 +85,16 @@ let default_audit_budget = 1024
 
 type t =
   { market_data_subscribers_by_symbol :
-      Market_data_pipe.t Bag.t Symbol.Table.t
+      Market_data_pipe.t Bag.t Symbol_id.Table.t
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
-  ; sessions_table : Session.t Participant.Table.t
+  ; (* The server-global name<->id map. Additive and shared: interned once at
+       login and never pruned, so an id means the same participant everywhere
+       and across reconnects. Distinct from [sessions_table], which is
+       connection-scoped. *)
+    registry : Participant_registry.t
+  ; (* Currently-connected sessions, keyed by the interned id rather than the
+       name. Pruned on disconnect. *)
+    sessions_table : Session.t Participant_id.Table.t
   ; market_data_budget : int
   ; session_budget : int
   ; audit_budget : int
@@ -99,9 +106,10 @@ let create
   ?(audit_budget = default_audit_budget)
   ()
   =
-  { market_data_subscribers_by_symbol = Symbol.Table.create ()
+  { market_data_subscribers_by_symbol = Symbol_id.Table.create ()
   ; audit_subscribers = Bag.create ()
-  ; sessions_table = Participant.Table.create ()
+  ; registry = Participant_registry.create ()
+  ; sessions_table = Participant_id.Table.create ()
   ; market_data_budget
   ; session_budget
   ; audit_budget
@@ -114,36 +122,47 @@ let create
    from the registry so the participant can reconnect, but only if it is
    still the registered session: a re-login may have replaced it, and we must
    not evict the replacement. *)
+let intern t participant = Participant_registry.intern t.registry participant
+let sessions t = t.sessions_table
+
+let find_session t participant =
+  match Participant_registry.id_of_name t.registry participant with
+  | None -> None
+  | Some id -> Hashtbl.find t.sessions_table id
+;;
+
 let create_session t participant =
+  (* Intern up front so [id] exists for the close callback below, and so the
+     id is stable regardless of which caller creates the session. *)
+  let id = Participant_registry.intern t.registry participant in
   let session = Session.create ~budget:t.session_budget participant in
   don't_wait_for
     (let%map () = Session.closed session in
-     match Hashtbl.find t.sessions_table participant with
+     match Hashtbl.find t.sessions_table id with
      | Some current when phys_equal current session ->
-       Hashtbl.remove t.sessions_table participant
+       Hashtbl.remove t.sessions_table id
      | Some _ | None -> ());
   session
 ;;
 
-let sessions t = t.sessions_table
-
 let clean_up_session t session =
-  let table = sessions t in
   let participant = Session.participant session in
-  Hashtbl.remove table participant;
+  (match Participant_registry.id_of_name t.registry participant with
+   | Some id -> Hashtbl.remove t.sessions_table id
+   | None -> ());
   Session.close session;
   Deferred.return ()
 ;;
 
 let set_up_session t participant =
-  let table = sessions t in
+  let id = Participant_registry.intern t.registry participant in
   let%bind () =
-    match Hashtbl.find table participant with
+    match Hashtbl.find t.sessions_table id with
     | Some _session -> clean_up_session t _session
     | None -> Deferred.return ()
   in
   let new_session = create_session t participant in
-  Hashtbl.set table ~key:participant ~data:new_session;
+  Hashtbl.set t.sessions_table ~key:id ~data:new_session;
   Deferred.return ()
 ;;
 
@@ -209,12 +228,15 @@ let push_audit t event =
     else Pipe.write_without_pushback_if_open writer event)
 ;;
 
-(* writes the event to the appropriate session's pipe. *)
+(* writes the event to the appropriate session's pipe. The event carries the
+   participant *name*, so resolve it to an id before the (id-keyed) lookup. *)
 let push_to_session t participant event =
-  let table = sessions t in
-  match Hashtbl.find table participant with
-  | Some session -> Session.push session event
+  match Participant_registry.id_of_name t.registry participant with
   | None -> ()
+  | Some id ->
+    (match Hashtbl.find t.sessions_table id with
+     | Some session -> Session.push session event
+     | None -> ())
 ;;
 
 let dispatch_event t (event : Exchange_event.t) =
@@ -274,13 +296,18 @@ let pipe_occupancy t : Exchange_stats.Pipe_occupancy.t =
     Bag.fold t.audit_subscribers ~init:0 ~f:(fun acc writer ->
       Int.max acc (Pipe.length writer))
   in
-  let session_max, slowest_session =
+  let session_max, slowest_id =
     Hashtbl.fold
       t.sessions_table
       ~init:(0, None)
-      ~f:(fun ~key:participant ~data:session (worst, who) ->
+      ~f:(fun ~key:id ~data:session (worst, who) ->
         let length = Session.queue_length session in
-        if length > worst then length, Some participant else worst, who)
+        if length > worst then length, Some id else worst, who)
+  in
+  (* [slowest_session] is reported by name, so resolve the id back at this
+     stats edge. *)
+  let slowest_session =
+    Option.map slowest_id ~f:(Participant_registry.name_of_id t.registry)
   in
   { market_data_max; audit_max; session_max; slowest_session }
 ;;

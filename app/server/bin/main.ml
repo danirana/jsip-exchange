@@ -45,7 +45,9 @@ let seed_market_maker ~where_to_connect =
   let%bind connection = connect_as ~where_to_connect mm_participant in
   let config =
     Market_maker_bot.Config.create
-      ~symbol:(Symbol.of_string "AAPL")
+    (* Symbol id 0 — AAPL, the first entry in [default_symbols]. In phase 1
+       the exchange speaks ids, so the seed maker trades by id, not name. *)
+      ~symbol:(Symbol_id.of_int 0)
       ~fair_value_cents:15000
       ~half_spread_cents:10
       ~size_per_level:100
@@ -66,7 +68,7 @@ let seed_market_maker ~where_to_connect =
      requires one; an empty oracle suffices. *)
   let oracle =
     Fundamental_oracle.create
-      (Symbol.Map.empty : Fundamental_oracle.Config.t)
+      (Symbol_id.Map.empty : Fundamental_oracle.Config.t)
       ~seed:0
   in
   let bot =
@@ -99,9 +101,15 @@ let seed_market_maker ~where_to_connect =
 ;;
 
 let start ~port ~should_seed_market_maker =
-  let%bind server =
-    Exchange_server.start ~symbols:default_symbols ~port ()
+  (* [default_symbols] defines the id order (its [i]th name is id [i]). The
+     authoritative directory is built here, once, and passed into the server;
+     it is what the directory RPC serves so clients can show and accept names
+     while ids still travel on the wire. *)
+  let directory =
+    Symbol_directory.create
+      (List.mapi default_symbols ~f:(fun i name -> name, Symbol_id.of_int i))
   in
+  let%bind server = Exchange_server.start ~directory ~port () in
   let where_to_connect =
     Tcp.Where_to_connect.of_host_and_port { host = "localhost"; port }
   in

@@ -34,7 +34,7 @@ module Config : sig
       - [inventory_skew_cents_per_share]: how far the fair value shifts per
         share of inventory when re-quoting after a fill. *)
   val create
-    :  symbol:Symbol.t
+    :  symbol:Symbol_id.t
     -> fair_value_cents:int
     -> half_spread_cents:int
     -> size_per_level:int

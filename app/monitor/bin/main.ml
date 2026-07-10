@@ -40,10 +40,18 @@ let subscribe_audit_log ~connection ~host ~port =
 
 let main ~host ~port () =
   let%bind connection = connect_to_exchange ~host ~port in
+  (* Fetch the symbol directory once so the TUI can label ids with names
+     while the audit feed itself still carries ids. *)
+  let%bind directory_alist =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.symbol_directory_rpc connection ()
+  in
+  let render_symbol =
+    Symbol_directory.label (Symbol_directory.create directory_alist)
+  in
   let%bind events = subscribe_audit_log ~connection ~host ~port in
   let%map result =
     Bonsai_term.start_with_exit (fun ~exit ~dimensions graph ->
-      Term_app.app ~events ~exit ~dimensions graph)
+      Term_app.app ~events ~render_symbol ~exit ~dimensions graph)
   in
   ok_exn result
 ;;

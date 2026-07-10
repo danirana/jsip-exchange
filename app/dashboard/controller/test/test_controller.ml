@@ -142,7 +142,7 @@ let%expect_test "of_window keeps the memory series and the latest book depth"
     {|
     ((memory (1000 1500 2000)) (latest 2000) (samples 3)
      (depth
-      (((symbol AAPL) (bbo ((bid ()) (ask ()))) (resting_size_bid 300)
+      (((symbol 0) (bbo ((bid ()) (ask ()))) (resting_size_bid 300)
         (resting_size_ask 150)))))
     |}]
 ;;

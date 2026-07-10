@@ -80,7 +80,7 @@ let%expect_test "session: disconnect at [budget], drop from registry" =
   let dispatcher = Dispatcher.create ~session_budget:3 () in
   let%bind () = Dispatcher.set_up_session dispatcher Harness.alice in
   let session =
-    Hashtbl.find_exn (Dispatcher.sessions dispatcher) Harness.alice
+    Dispatcher.find_session dispatcher Harness.alice |> Option.value_exn
   in
   let reader = Session.reader session in
   (* Five rejects for Alice, whose feed is never read. At budget 3, the
@@ -102,7 +102,7 @@ let%expect_test "session: disconnect at [budget], drop from registry" =
   let%bind () = Scheduler.yield_until_no_jobs_remain () in
   printf
     "still registered = %b\n"
-    (Hashtbl.mem (Dispatcher.sessions dispatcher) Harness.alice);
+    (Dispatcher.find_session dispatcher Harness.alice |> Option.is_some);
   [%expect {| still registered = false |}];
   return ()
 ;;

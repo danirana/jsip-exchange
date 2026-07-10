@@ -341,7 +341,7 @@ let%expect_test "snapshot lists levels in price-time priority order" =
   print_endline (Order_book.snapshot book |> Book.to_string);
   [%expect
     {|
-    === AAPL ===
+    === 0 ===
       BIDS:
         $150.00 x100
         $149.95 x100
@@ -354,13 +354,108 @@ let%expect_test "snapshot lists levels in price-time priority order" =
     |}]
 ;;
 
+let%expect_test "snapshot aggregates orders resting at the same price" =
+  let book = Order_book.create Harness.aapl in
+  (* Each side has a price with several resting orders -- the case the
+     distinct-price test above never exercises. The snapshot must collapse
+     each run to one level whose size is the sum, matching the BBO. *)
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ~size:100 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:2 ~size:40 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:14995 ~order_id:3 ~size:25 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15005 ~order_id:4 ~size:60 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15005 ~order_id:5 ~size:10 ());
+  print_endline (Order_book.snapshot book |> Book.to_string);
+  [%expect
+    {|
+    === 0 ===
+      BIDS:
+        $150.00 x140
+        $149.95 x25
+      ASKS:
+        $150.05 x70
+      BBO: $150.00 x140 / $150.05 x70
+    |}]
+;;
+
+let%expect_test "snapshot aggregates across participants at one price" =
+  let book = Order_book.create Harness.aapl in
+  (* Different participants stacked at the same price on each side: the
+     snapshot must sum sizes into one level regardless of who owns each order
+     (the book key is (price, order_id), not participant). *)
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:14990
+       ~order_id:1
+       ~size:40
+       ~participant:Harness.bob
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:14990
+       ~order_id:2
+       ~size:35
+       ~participant:Harness.alice
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15000
+       ~order_id:3
+       ~size:30
+       ~participant:Harness.alice
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15000
+       ~order_id:4
+       ~size:50
+       ~participant:Harness.bob
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15000
+       ~order_id:5
+       ~size:20
+       ~participant:Harness.alice
+       ());
+  print_endline (Order_book.snapshot book |> Book.to_string);
+  [%expect
+    {|
+    === 0 ===
+      BIDS:
+        $149.90 x75
+      ASKS:
+        $150.00 x100
+      BBO: $149.90 x75 / $150.00 x100
+    |}]
+;;
+
 (* --- best_price --- *)
 
 let%expect_test "best_price" =
-  let book = Order_book.create (Symbol.of_string "TEST") in
+  let book = Order_book.create (Symbol_id.of_int 0) in
   let o1 =
     Order.create
-      { symbol = Symbol.of_string "TEST"
+      { symbol = Symbol_id.of_int 0
       ; participant = Participant.of_string "Alice"
       ; side = Side.Buy
       ; price = Price.of_int_cents 150
@@ -372,7 +467,7 @@ let%expect_test "best_price" =
   in
   let o2 =
     Order.create
-      { symbol = Symbol.of_string "TEST"
+      { symbol = Symbol_id.of_int 0
       ; participant = Participant.of_string "Bob"
       ; side = Side.Buy
       ; price = Price.of_int_cents 200

@@ -18,7 +18,7 @@ module Context = Bot_runtime.Context
 
 module Config = struct
   type t =
-    { symbol : Symbol.t
+    { symbol : Symbol_id.t
     ; fair_value_cents : int
     ; half_spread_cents : int
     ; size_per_level : int
@@ -28,7 +28,7 @@ module Config = struct
         ladder each call, so every re-quote uses fresh ids that the exchange
         won't reject as duplicates of already-terminal ones. *)
     ; inventory_skew_cents_per_share : int
-    ; inventory : int Symbol.Table.t
+    ; inventory : int Symbol_id.Table.t
     ; active_orders : int Client_order_id.Table.t
     }
   [@@deriving sexp_of]
@@ -49,7 +49,7 @@ module Config = struct
     ; num_levels
     ; client_order_id
     ; inventory_skew_cents_per_share
-    ; inventory = Symbol.Table.create ()
+    ; inventory = Symbol_id.Table.create ()
     ; active_orders = Client_order_id.Table.create ()
     }
   ;;

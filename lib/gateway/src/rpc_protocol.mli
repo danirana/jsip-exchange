@@ -42,9 +42,15 @@ val reset_exchange_rpc : (unit, unit Or_error.t) Rpc.Rpc.t
     (those arrive as [Order_reject] events on the session feed). *)
 val submit_order_rpc : (Order.Request.t, unit Or_error.t) Rpc.Rpc.t
 
-(** Query the order book for a given symbol. Returns a structured snapshot of
-    all resting orders on both sides, if a book for that symbol exists. *)
-val book_query_rpc : (Symbol.t, Book.t option) Rpc.Rpc.t
+(** Query the order book for a given symbol id. Returns a structured snapshot
+    of all resting orders on both sides, if a book for that id exists. *)
+val book_query_rpc : (Symbol_id.t, Book.t option) Rpc.Rpc.t
+
+(** Fetch the symbol directory: every [(name, id)] pair the exchange trades.
+    Clients and the monitor call this once at connect and keep a local mirror
+    (see {!Symbol_directory}) to resolve names↔ids, while the wire itself
+    keeps carrying only ids. *)
+val symbol_directory_rpc : (unit, (Symbol.t * Symbol_id.t) list) Rpc.Rpc.t
 
 (** Subscribe to market data for one or more symbols. The server pushes BBO
     updates and trade reports as they happen via a single pipe. The query is
@@ -52,7 +58,7 @@ val book_query_rpc : (Symbol.t, Book.t option) Rpc.Rpc.t
     avoids the overhead of opening a separate pipe per symbol when a client
     cares about several. *)
 val market_data_rpc
-  : (Symbol.t list, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
+  : (Symbol_id.t list, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
 
 (** Subscribe to the full audit log: every [Exchange_event.t] the matching
     engine produces, across every symbol and participant.

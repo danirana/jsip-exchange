@@ -3,11 +3,12 @@ open Core_bench
 
 (* Sizes are kept modest: [Silly_store] is O(n) per operation, so [build] is
    ~O(n^2). *)
-let sizes = [ 10; 100; 1000 ]
+let sizes = [ 10; 100; 1000; 10000 ]
 let present_key n = n / 2
 let absent_key = -1
 
 let bench_silly =
+  (* Silly_Store build benchmark *)
   let build n =
     let store = Key_value_stores.Silly_store.create () in
     let (_ : unit list) =
@@ -18,6 +19,7 @@ let bench_silly =
   in
   List.concat_map sizes ~f:(fun n ->
     let prebuilt = build n in
+    (* thunk *)
     [ Bench.Test.create
         ~name:(sprintf "Silly_store build (n=%d)" n)
         (fun () -> ignore (build n : Key_value_stores.Silly_store.t))
@@ -42,10 +44,35 @@ let bench_silly =
    in index order: hence [List.iter] over [List.init] rather than a
    side-effecting [List.init], whose evaluation order isn't guaranteed
    left-to-right. *)
-let seq_tests ~name ~create ~set ~get =
-  (* "TODO: benchmark for part 4, 0b" *)
-  ignore (name, create, set, get);
-  []
+let seq_tests ~name ~create ~set ~get ~remove =
+  let build n =
+    let store = create () in
+    List.iter (List.init n ~f:Fn.id) ~f:(fun key -> set store ~key ~data:key);
+    store
+  in
+  List.concat_map sizes ~f:(fun n ->
+    let prebuilt = build n in
+    [ Bench.Test.create ~name:(sprintf "%s build (n=%d)" name n) (fun () ->
+        ignore (build n))
+    ; Bench.Test.create ~name:(sprintf "%s get_hit (n=%d)" name n) (fun () ->
+        ignore (get prebuilt (present_key n) : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s get_miss (n=%d)" name n)
+        (fun () -> ignore (get prebuilt absent_key : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s set_overwrite (n=%d)" name n)
+        (fun () -> ignore (set prebuilt ~key:(present_key n) ~data:0))
+    ; Bench.Test.create
+        ~name:(sprintf "%s remove_begin (n=%d)" name n)
+        (fun () ->
+           remove prebuilt 0;
+           set prebuilt ~key:(n - 1) ~data:0)
+    ; Bench.Test.create
+        ~name:(sprintf "%s remove_end (n=%d)" name n)
+        (fun () ->
+           remove prebuilt (n - 1);
+           set prebuilt ~key:(n - 1) ~data:0)
+    ])
 ;;
 
 let bench_sequential =
@@ -55,11 +82,13 @@ let bench_sequential =
         ~create:Sequences.List_seq.create
         ~set:Sequences.List_seq.set
         ~get:Sequences.List_seq.get
+        ~remove:Sequences.List_seq.remove
     ; seq_tests
         ~name:"Dynarray_seq"
         ~create:Sequences.Dynarray_seq.create
         ~set:Sequences.Dynarray_seq.set
         ~get:Sequences.Dynarray_seq.get
+        ~remove:Sequences.Dynarray_seq.remove
     ]
 ;;
 
@@ -68,9 +97,27 @@ let bench_sequential =
    [Int.to_string] for string keys), so the same helper covers both int- and
    string-keyed stores. *)
 let assoc_tests ~name ~create ~set ~get ~key_of_index =
-  (* "TODO: benchmark for part 4, 0c" *)
-  ignore (name, create, set, get, key_of_index);
-  []
+  let build n =
+    let store = create () in
+    List.iter (List.init n ~f:Fn.id) ~f:(fun i ->
+      set store ~key:(key_of_index i) ~data:i);
+    store
+  in
+  List.concat_map sizes ~f:(fun n ->
+    let prebuilt = build n in
+    [ Bench.Test.create ~name:(sprintf "%s build (n=%d)" name n) (fun () ->
+        ignore (build n))
+    ; Bench.Test.create ~name:(sprintf "%s get_hit (n=%d)" name n) (fun () ->
+        ignore (get prebuilt (key_of_index (present_key n)) : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s get_miss (n=%d)" name n)
+        (fun () ->
+           ignore (get prebuilt (key_of_index absent_key) : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s set_overwrite (n=%d)" name n)
+        (fun () ->
+           ignore (set prebuilt ~key:(key_of_index (present_key n)) ~data:0))
+    ])
 ;;
 
 let bench_associative =
@@ -118,8 +165,30 @@ let bench_associative =
    in how much they allocate (watch the mWd/Run column). Inputs are prebuilt
    so the timed op is just the pattern under test. *)
 let bench_allocation =
-  (* TODO: benchmark for part 4, 0d *)
-  []
+  (* [f] matches every element, so [First_match.silly]'s [filter] allocates a
+     full copy while [non_silly]'s [find] stops at the head -- the starkest
+     allocation contrast. *)
+  let matches_all x = x >= 0 in
+  List.concat_map sizes ~f:(fun n ->
+    let xs = List.init n ~f:Fn.id in
+    [ Bench.Test.create
+        ~name:(sprintf "Build_list silly (n=%d)" n)
+        (fun () -> ignore (Allocations.Build_list.silly xs : int list))
+    ; Bench.Test.create
+        ~name:(sprintf "Build_list non_silly (n=%d)" n)
+        (fun () -> ignore (Allocations.Build_list.non_silly xs : int list))
+    ; Bench.Test.create
+        ~name:(sprintf "First_match silly (n=%d)" n)
+        (fun () ->
+           ignore
+             (Allocations.First_match.silly xs ~f:matches_all : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "First_match non_silly (n=%d)" n)
+        (fun () ->
+           ignore
+             (Allocations.First_match.non_silly xs ~f:matches_all
+              : int option))
+    ])
 ;;
 
 let command =

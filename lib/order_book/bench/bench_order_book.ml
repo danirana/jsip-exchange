@@ -1,7 +1,10 @@
 (** Benchmarks for the order book and matching engine.
 
-    Run with: dune exec lib/order_book/bench/bench_order_book.exe -- -ascii
-    -quota 5
+    Run with: dune exec lib/order_book/bench/bench_order_book.exe -- existing
+    -ascii -quota 5
+
+    (The benchmarks live under named subcommands now; [existing] holds the
+    original suite. Run with no subcommand to list them.)
 
     These benchmarks measure the core operations of the exchange and are
     designed to give you meaningful feedback on the performance of the system
@@ -24,9 +27,9 @@
      {- Compare before/after by saving results:
 
        {v
-          dune exec lib/order_book/bench/bench_order_book.exe -- -ascii -quota 5 > before.txt
+          dune exec lib/order_book/bench/bench_order_book.exe -- existing -ascii -quota 5 > before.txt
           # ... make your changes ...
-          dune exec lib/order_book/bench/bench_order_book.exe -- -ascii -quota 5 > after.txt
+          dune exec lib/order_book/bench/bench_order_book.exe -- existing -ascii -quota 5 > after.txt
           diff before.txt after.txt
        v}
     }
@@ -41,7 +44,7 @@ open Jsip_order_book
 (* Setup helpers *)
 (* ---------------------------------------------------------------- *)
 
-let aapl = Symbol.of_string "AAPL"
+let aapl = Symbol_id.of_int 0
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
 
@@ -69,6 +72,31 @@ let book_with_n_asks ?(min_price = 10_000) n =
   book, gen
 ;;
 
+(** Build a book with [n] resting sell orders all at the *same* price.
+    [book_with_n_asks] spreads orders across distinct prices, so its
+    [snapshot] has one order per level and aggregation does nothing. This
+    stacks a single level [n] deep, so [snapshot] must fold [n] orders into
+    one [Level.t] -- the case that actually exercises aggregation cost. *)
+let book_with_n_asks_same_price ?(price = 15_000) n =
+  let book = Order_book.create aapl in
+  let gen = Order_id.Generator.create () in
+  for _ = 1 to n do
+    Order_book.add
+      book
+      (Order.create
+         { symbol = aapl
+         ; participant = bob
+         ; side = Sell
+         ; price = Price.of_int_cents price
+         ; size = Size.of_int 100
+         ; time_in_force = Day
+         ; client_order_id = Client_order_id.of_int 1
+         }
+         ~order_id:(Order_id.Generator.next gen))
+  done;
+  book
+;;
+
 (** Build a matching engine with [n] resting sells on AAPL. *)
 let engine_with_n_asks ?(min_price = 10_000) n =
   let engine = Matching_engine.create [ aapl ] in
@@ -87,6 +115,18 @@ let engine_with_n_asks ?(min_price = 10_000) n =
        : Exchange_event.t list)
   done;
   engine
+;;
+
+(** Build a matching engine trading [n] distinct symbols (SYM0..SYM[n-1]) and
+    return it alongside a probe symbol from the middle of the set. Exercises
+    the symbol->book lookup that [book]/[submit]/[cancel] all pay but that
+    the single-symbol benchmarks above never stress. *)
+let engine_with_n_symbols n =
+  let symbols = List.init n ~f:(fun i -> Symbol_id.of_int i) in
+  let engine = Matching_engine.create symbols in
+  let mid = n / 2 in
+  let probe = Symbol_id.of_int mid in
+  engine, probe
 ;;
 
 (* ---------------------------------------------------------------- *)
@@ -286,6 +326,35 @@ let bench_find_match_alloc ~n =
 ;;
 
 (* ---------------------------------------------------------------- *)
+(* Snapshot *)
+(* ---------------------------------------------------------------- *)
+
+(** Time [snapshot] on a book whose [n] orders all rest at one price, so the
+    timed work is aggregating [n] orders into a single [Level.t] -- the cost
+    [book_with_n_asks] (one order per level) never surfaces. *)
+let bench_snapshot ~n =
+  let book = book_with_n_asks_same_price n in
+  Bench.Test.create
+    ~name:[%string "snapshot_same_price (n=%{n#Int})"]
+    (fun () -> ignore (Order_book.snapshot book : Book.t))
+;;
+
+(* ---------------------------------------------------------------- *)
+(* Symbol lookup *)
+(* ---------------------------------------------------------------- *)
+
+(** Time [book], the pure symbol->book lookup, on an engine trading [n]
+    symbols. This is the site the symbol-interning optimization targets: with
+    a [Symbol.Map] it is O(log n) string comparisons; the win is meant to
+    show up here (and grow with [n]), without the matching work that [submit]
+    and [cancel] would bury it under. *)
+let bench_book_lookup ~n =
+  let engine, probe = engine_with_n_symbols n in
+  Bench.Test.create ~name:[%string "book_lookup (n=%{n#Int})"] (fun () ->
+    ignore (Matching_engine.book engine probe : Order_book.t option))
+;;
+
+(* ---------------------------------------------------------------- *)
 (* Main *)
 (* ---------------------------------------------------------------- *)
 
@@ -306,5 +375,16 @@ let () =
         [ bench_find_match_alloc ~n:100 ]
       ]
   in
-  Command_unix.run (Bench.make_command tests)
+  Command_unix.run
+    (Command.group
+       ~summary:"JSIP order-book benchmarks"
+       [ "existing", Bench.make_command tests
+       ; ( "snapshot"
+         , Bench.make_command
+             (List.map sizes ~f:(fun n -> bench_snapshot ~n)) )
+       ; ( "book-lookup"
+         , Bench.make_command
+             (List.map [ 10; 100; 1_000; 10_000 ] ~f:(fun n ->
+                bench_book_lookup ~n)) )
+       ])
 ;;

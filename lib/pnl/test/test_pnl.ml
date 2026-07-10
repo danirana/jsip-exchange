@@ -70,10 +70,10 @@ let%expect_test "round trip nets between two participants" =
   [%expect
     {|
     Alice:
-      AAPL: pos=0 avg=- ref=- realized=$1000.00 unrealized=$0.00
+      0: pos=0 avg=- ref=- realized=$1000.00 unrealized=$0.00
       total: realized=$1000.00 unrealized=$0.00 net=$1000.00
     Bob:
-      AAPL: pos=0 avg=- ref=- realized=-$1000.00 unrealized=$0.00
+      0: pos=0 avg=- ref=- realized=-$1000.00 unrealized=$0.00
       total: realized=-$1000.00 unrealized=$0.00 net=-$1000.00
     |}]
 ;;
@@ -97,7 +97,7 @@ let%expect_test "unrealized marks against the last trade print" =
   [%expect
     {|
     Alice:
-      AAPL: pos=100 avg=$100.00 ref=- realized=$0.00 unrealized=$0.00
+      0: pos=100 avg=$100.00 ref=- realized=$0.00 unrealized=$0.00
       total: realized=$0.00 unrealized=$0.00 net=$0.00
     |}];
   let pnl =
@@ -109,7 +109,7 @@ let%expect_test "unrealized marks against the last trade print" =
   [%expect
     {|
     Alice:
-      AAPL: pos=100 avg=$100.00 ref=$105.00 realized=$0.00 unrealized=$500.00
+      0: pos=100 avg=$100.00 ref=$105.00 realized=$0.00 unrealized=$500.00
       total: realized=$0.00 unrealized=$500.00 net=$500.00
     |}];
   (* Print moves below cost: the unrealized mark goes negative. *)
@@ -122,7 +122,7 @@ let%expect_test "unrealized marks against the last trade print" =
   [%expect
     {|
     Alice:
-      AAPL: pos=100 avg=$100.00 ref=$95.00 realized=$0.00 unrealized=-$500.00
+      0: pos=100 avg=$100.00 ref=$95.00 realized=$0.00 unrealized=-$500.00
       total: realized=$0.00 unrealized=-$500.00 net=-$500.00
     |}]
 ;;
@@ -180,8 +180,8 @@ let%expect_test "averaging, flipping, and multiple symbols" =
   [%expect
     {|
     Alice:
-      AAPL: pos=-50 avg=$105.00 ref=$100.00 realized=$800.00 unrealized=$250.00
-      TSLA: pos=50 avg=$200.00 ref=$210.00 realized=$0.00 unrealized=$500.00
+      0: pos=-50 avg=$105.00 ref=$100.00 realized=$800.00 unrealized=$250.00
+      1: pos=50 avg=$200.00 ref=$210.00 realized=$0.00 unrealized=$500.00
       total: realized=$800.00 unrealized=$750.00 net=$1550.00
     |}];
   (* The full structured summary, for the record. *)
@@ -189,10 +189,10 @@ let%expect_test "averaging, flipping, and multiple symbols" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (position -50) (average_entry_price (10500))
+      (((symbol 0) (position -50) (average_entry_price (10500))
         (reference_price (10000)) (realized_cents 80000)
         (unrealized_cents 25000))
-       ((symbol TSLA) (position 50) (average_entry_price (20000))
+       ((symbol 1) (position 50) (average_entry_price (20000))
         (reference_price (21000)) (realized_cents 0) (unrealized_cents 50000))))
      (realized_cents 80000) (unrealized_cents 75000))
     |}]
@@ -234,7 +234,7 @@ let%expect_test "partial close leaves the remainder's average untouched" =
   [%expect
     {|
     Alice:
-      AAPL: pos=60 avg=$100.00 ref=$105.00 realized=$400.00 unrealized=$300.00
+      0: pos=60 avg=$100.00 ref=$105.00 realized=$400.00 unrealized=$300.00
       total: realized=$400.00 unrealized=$300.00 net=$700.00
     |}]
 ;;
@@ -258,7 +258,7 @@ let%expect_test "zero-size fill" =
   [%expect
     {|
     Alice:
-      AAPL: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
+      0: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
       total: realized=$0.00 unrealized=$0.00 net=$0.00
     |}]
 ;;
@@ -283,7 +283,7 @@ let%expect_test "self-trade nets to nothing" =
   [%expect
     {|
     Alice:
-      AAPL: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
+      0: pos=0 avg=- ref=- realized=$0.00 unrealized=$0.00
       total: realized=$0.00 unrealized=$0.00 net=$0.00
     |}]
 ;;
@@ -326,7 +326,7 @@ let%expect_test "rounding drift in the average entry price" =
   [%expect
     {|
     Alice:
-      AAPL: pos=0 avg=- ref=- realized=$0.03 unrealized=$0.00
+      0: pos=0 avg=- ref=- realized=$0.03 unrealized=$0.00
       total: realized=$0.03 unrealized=$0.00 net=$0.03
     |}]
 ;;

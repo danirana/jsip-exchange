@@ -27,7 +27,7 @@ module Display = struct
   type t =
     { title : string
     ; counter : string
-    ; bbo_panel : (Symbol.t * Bbo.t) list
+    ; bbo_panel : (string * Bbo.t) list
     ; category_chips : Chip.t list
     ; substring_field : substring_field
     ; visible_events : (Event_log.Color.t * string) list
@@ -145,10 +145,12 @@ let compile_filter t =
       (Event_log.Filter.by_substring effective_substring)
 ;;
 
-let display t : Display.t =
+let display ?(render_symbol = Symbol_id.to_string) t : Display.t =
   let filter = compile_filter t in
   let filtered_log = Event_log.set_filter t.log filter in
-  let visible_events = Event_log.visible_styled_lines filtered_log in
+  let visible_events =
+    Event_log.visible_styled_lines ~render_symbol filtered_log
+  in
   let total = Event_log.event_count t.log in
   let visible_count = List.length visible_events in
   let cat_chip hotkey cat : Chip.t =
@@ -176,7 +178,9 @@ let display t : Display.t =
   in
   { title = "JSIP Exchange Monitor"
   ; counter = [%string "%{visible_count#Int} of %{total#Int} events"]
-  ; bbo_panel = Event_log.current_bbos t.log
+  ; bbo_panel =
+      List.map (Event_log.current_bbos t.log) ~f:(fun (id, bbo) ->
+        render_symbol id, bbo)
   ; category_chips =
       [ cat_chip '1' Order_lifecycle
       ; cat_chip '2' Trade

@@ -64,8 +64,14 @@ module Filter : sig
   (** [combine a b] returns a filter that requires both [a] and [b]. *)
   val combine : t -> t -> t
 
-  (** Whether the filter would keep [event]. *)
-  val matches : t -> Exchange_event.t -> bool
+  (** Whether the filter would keep [event]. [render_symbol] controls how a
+      symbol id appears when a substring predicate matches the rendered line
+      (default: the integer id). *)
+  val matches
+    :  ?render_symbol:(Symbol_id.t -> string)
+    -> t
+    -> Exchange_event.t
+    -> bool
 end
 
 type t
@@ -85,7 +91,7 @@ val event_count : t -> int
     insertion order of first appearance: a symbol's slot is added the first
     time it produces a BBO and never reordered, even when later BBOs update
     its value. *)
-val current_bbos : t -> (Symbol.t * Bbo.t) list
+val current_bbos : t -> (Symbol_id.t * Bbo.t) list
 
 (** Replace the active filter. *)
 val set_filter : t -> Filter.t -> t
@@ -93,12 +99,24 @@ val set_filter : t -> Filter.t -> t
 (** The currently-active filter. *)
 val filter : t -> Filter.t
 
-(** Visible events in insertion order (oldest first). *)
-val visible_events : t -> Exchange_event.t list
+(** Visible events in insertion order (oldest first). [render_symbol] only
+    affects the substring filter's matching text (default: the integer id). *)
+val visible_events
+  :  ?render_symbol:(Symbol_id.t -> string)
+  -> t
+  -> Exchange_event.t list
 
-(** Visible events rendered as text via [Protocol.format_event]. *)
-val visible_lines : t -> string list
+(** Visible events rendered as text via [Protocol.format_event]. Pass
+    [render_symbol] (e.g. {!Symbol_directory.label}) to show names; defaults
+    to the integer id. *)
+val visible_lines
+  :  ?render_symbol:(Symbol_id.t -> string)
+  -> t
+  -> string list
 
 (** Visible events rendered as [(Color.t, line)] pairs, ready for a styled
-    UI. *)
-val visible_styled_lines : t -> (Color.t * string) list
+    UI. See {!visible_lines} for [render_symbol]. *)
+val visible_styled_lines
+  :  ?render_symbol:(Symbol_id.t -> string)
+  -> t
+  -> (Color.t * string) list

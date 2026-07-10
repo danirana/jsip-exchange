@@ -218,7 +218,7 @@ module Book = struct
     let bbo = depth.bbo in
     {%html|
       <tr %{Styles.attr Styles.book_row}>
-        <td %{Styles.attr Styles.book_sym}>#{Symbol.to_string depth.symbol}</td>
+        <td %{Styles.attr Styles.book_sym}>#{Symbol_id.to_string depth.symbol}</td>
         <td %{Styles.attr Styles.book_size_bid}>#{Fmt.size (Bbo.size bbo Side.Buy)}</td>
         <td %{Styles.attr Styles.book_price_bid}>#{Fmt.price (Bbo.price bbo Side.Buy)}</td>
         <td %{Styles.attr Styles.book_spread}>#{Fmt.price (Bbo.spread bbo)}</td>

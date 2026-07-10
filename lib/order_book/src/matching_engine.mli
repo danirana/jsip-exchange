@@ -10,9 +10,13 @@ open Jsip_types
 
 type t [@@deriving sexp_of]
 
-(** Create a matching engine for the given symbols. Each symbol gets its own
-    order book. *)
-val create : Symbol.t list -> t
+(** Create a matching engine trading the given symbol ids, one order book per
+    id. The ids must be the dense range [0 .. n-1] (as
+    {!Jsip_types.Symbol_id} values): only their count matters, since a book
+    is reached by using the id directly as an array index. The engine speaks
+    in {!Jsip_types.Symbol_id} everywhere below — no symbol names cross this
+    boundary. *)
+val create : Symbol_id.t list -> t
 
 (** {2 Order submission} *)
 
@@ -26,9 +30,10 @@ val submit : t -> Order.Request.t -> Exchange_event.t list
 
 (** {2 Queries} *)
 
-(** The order book for a given symbol, or [None] if the symbol is not traded
-    on this engine. *)
-val book : t -> Symbol.t -> Order_book.t option
+(** The order book for a given symbol id, or [None] if the id is not a symbol
+    traded on this engine (including an out-of-range id from an untrusted
+    client). *)
+val book : t -> Symbol_id.t -> Order_book.t option
 
 (** How many orders each participant currently has resting across all books,
     aggregated from each book's incrementally-maintained count. *)

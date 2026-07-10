@@ -6,13 +6,14 @@
 
 open! Core
 open! Async
-open Jsip_types
 
 type t
 
-(** Start a server on the given port with the given symbols. Returns the
-    server handle and the port it is actually listening on (useful when you
-    pass port 0 to get an OS-assigned port).
+(** Start a server on the given port trading the symbols in [directory]. The
+    directory's ids are the engine's book set, and its (name, id) pairs are
+    served over {!Rpc_protocol.symbol_directory_rpc}. Returns the server
+    handle and the port it is actually listening on (useful when you pass
+    port 0 to get an OS-assigned port).
 
     The optional budgets bound each family of outbound subscriber pipe
     against a slow consumer; they are passed straight through to
@@ -22,7 +23,7 @@ val start
   :  ?market_data_budget:int
   -> ?session_budget:int
   -> ?audit_budget:int
-  -> symbols:Symbol.t list
+  -> directory:Symbol_directory.t
   -> port:int
   -> unit
   -> t Deferred.t

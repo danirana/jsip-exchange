@@ -42,7 +42,7 @@ val empty : t
     the traded size — irrelevant here). *)
 module Trade_report : sig
   type t =
-    { symbol : Symbol.t
+    { symbol : Symbol_id.t
     ; price : Price.t
     }
   [@@deriving sexp, bin_io]
@@ -63,7 +63,7 @@ module Summary : sig
   (** One symbol's contribution to a participant's P&L. *)
   module Per_symbol : sig
     type t =
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; position : int
       (** Signed share count; positive long, negative short. *)
       ; average_entry_price : Price.t option

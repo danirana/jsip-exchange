@@ -23,6 +23,16 @@ let run_client ~host ~port ~participant_name =
     Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc conn participant_name
   in
   let (_ : Participant.t) = Or_error.ok_exn login_result in
+  (* Fetch the symbol directory once and keep a local mirror, so we can
+     accept names at the prompt and show names in output while the wire still
+     carries ids. [render_symbol] is id->name for display; [resolve_symbol]
+     is name->id for parsing. *)
+  let%bind directory_alist =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.symbol_directory_rpc conn ()
+  in
+  let directory = Symbol_directory.create directory_alist in
+  let render_symbol = Symbol_directory.label directory in
+  let resolve_symbol = Symbol_directory.id_of_name directory in
   (* open a pipe between client and server *)
   let%bind session_feed_result =
     Rpc.Pipe_rpc.dispatch Rpc_protocol.session_feed_rpc conn ()
@@ -39,7 +49,12 @@ let run_client ~host ~port ~participant_name =
       (Pipe.iter_without_pushback reader ~f:(fun event ->
          match event with
          | Exchange_event.Fill fill ->
-           (match Fill.to_participant_view fill participant with
+           (match
+              Protocol.fill_participant_view
+                ~render_symbol
+                fill
+                ~viewer:participant
+            with
             | Some view_str -> print_endline view_str
             | None -> ())
          | Exchange_event.Order_accept { order_id; _ } ->
@@ -64,7 +79,7 @@ let run_client ~host ~port ~participant_name =
       [%string
         "Connected to exchange at %{host}:%{port#Int} as \
          %{participant#Participant}\n\
-         Commands: BUY|SELL <symbol> <size> <price> \
+         Commands: BUY|SELL <client_order_id> <symbol> <size> <price> \
          [%{Time_in_force.all_str}]\n\
         \          BOOK <symbol>\n\
         \          SUBSCRIBE <symbol>  (stream market data)\n\n\
@@ -85,7 +100,10 @@ let run_client ~host ~port ~participant_name =
         then loop ()
         else (
           match
-            Exchange_command.parse ~default_participant:participant line
+            Exchange_command.parse
+              ~default_participant:participant
+              ~resolve_symbol
+              line
           with
           | Error msg ->
             print_endline [%string "ERROR: %{Error.to_string_hum msg}"];
@@ -96,9 +114,10 @@ let run_client ~host ~port ~participant_name =
             in
             (match result with
              | None ->
-               print_endline
-                 [%string "No book available for %{symbol#Symbol}"]
-             | Some result -> print_endline (Book.to_string result));
+               let label = render_symbol symbol in
+               print_endline [%string "No book available for %{label}"]
+             | Some result ->
+               print_endline (Protocol.format_book ~render_symbol result));
             loop ()
           | Ok (Subscribe symbol) ->
             let%bind result =
@@ -113,14 +132,15 @@ let run_client ~host ~port ~participant_name =
                  [%string "ERROR subscribing: %{Error.to_string_hum err}"];
                loop ()
              | Ok (Ok (reader, _id)) ->
+               let label = render_symbol symbol in
                print_endline
                  [%string
-                   {| Subscribed to %{symbol#Symbol} market data. Updates will appear below.
+                   {| Subscribed to %{label} market data. Updates will appear below.
 Continue entering commands as normal.|}];
                don't_wait_for
                  (Pipe.iter_without_pushback reader ~f:(fun event ->
-                    print_endline
-                      [%string "[MD] %{Protocol.format_event event}"]));
+                    let line = Protocol.format_event ~render_symbol event in
+                    print_endline [%string "[MD] %{line}"]));
                loop ())
           | Ok (Cancel cancel_request) ->
             let%bind.Deferred.Or_error () =

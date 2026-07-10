@@ -7,11 +7,11 @@ open Jsip_fundamental
 open Jsip_bot_runtime
 open! Jsip_bots
 
-let aapl = Symbol.of_string "AAPL"
+let aapl = Symbol_id.of_int 0
 let alice = Participant.of_string "Alice"
 
 let oracle_config ~initial_price_cents =
-  Symbol.Map.of_alist_exn
+  Symbol_id.Map.of_alist_exn
     [ ( aapl
       , { Fundamental_oracle.Config.initial_price_cents
         ; volatility_cents_per_sec = 0.0
@@ -61,7 +61,7 @@ let print_submitted (submitted : Order.Request.t list ref) =
   let recent = List.rev !submitted in
   List.iter recent ~f:(fun req ->
     printf
-      !"%{Side} %{Symbol} %d@%{Price#dollar} %{Time_in_force}\n"
+      !"%{Side} %{Symbol_id} %d@%{Price#dollar} %{Time_in_force}\n"
       req.side
       req.symbol
       (Size.to_int req.size)
@@ -97,7 +97,7 @@ let print_orders (submitted : Order.Request.t list ref) =
   List.rev !submitted
   |> List.iter ~f:(fun (req : Order.Request.t) ->
     printf
-      !"#%{sexp:Client_order_id.t} %{Side} %{Symbol} %d@%{Price#dollar} \
+      !"#%{sexp:Client_order_id.t} %{Side} %{Symbol_id} %d@%{Price#dollar} \
         %{Time_in_force}\n"
       req.client_order_id
       req.side
@@ -121,12 +121,12 @@ let%expect_test "spammer fires a burst of never-fill orders each tick" =
   print_orders submitted;
   [%expect
     {|
-    #0 BUY AAPL 10@$0.01 DAY
-    #1 SELL AAPL 10@$10000.00 DAY
-    #2 BUY AAPL 10@$0.01 DAY
-    #3 BUY AAPL 10@$0.01 DAY
-    #4 SELL AAPL 10@$10000.00 DAY
-    #5 BUY AAPL 10@$0.01 DAY
+    #0 BUY 0 10@$0.01 DAY
+    #1 SELL 0 10@$10000.00 DAY
+    #2 BUY 0 10@$0.01 DAY
+    #3 BUY 0 10@$0.01 DAY
+    #4 SELL 0 10@$10000.00 DAY
+    #5 BUY 0 10@$0.01 DAY
     |}];
   return ()
 ;;
@@ -185,7 +185,7 @@ let%expect_test "every order carries the bot's participant" =
    across them round-robin so the load hits every book, not just the first. *)
 let%expect_test "burst round-robins across configured symbols" =
   let config : Spammer.Config.t =
-    { symbols = [ aapl; Symbol.of_string "MSFT" ]
+    { symbols = [ aapl; Symbol_id.of_int 1 ]
     ; orders_per_tick = 5
     ; size = 10
     ; next_client_order_id = ref 0
@@ -198,13 +198,13 @@ let%expect_test "burst round-robins across configured symbols" =
   let%bind () = Spammer.on_tick config ctx in
   List.rev !submitted
   |> List.iter ~f:(fun (req : Order.Request.t) ->
-    printf !"%{Symbol}\n" req.symbol);
+    printf !"%{Symbol_id}\n" req.symbol);
   [%expect {|
-    AAPL
-    MSFT
-    AAPL
-    MSFT
-    AAPL
+    0
+    1
+    0
+    1
+    0
     |}];
   return ()
 ;;

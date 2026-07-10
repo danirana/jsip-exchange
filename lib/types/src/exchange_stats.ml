@@ -78,7 +78,7 @@ module Book_depth = struct
      tell you how much interest is piled up behind it — which is what
      balloons when a book-filler bot rests orders it never means to trade. *)
   type t =
-    { symbol : Symbol.t
+    { symbol : Symbol_id.t
     ; bbo : Bbo.t
     ; resting_size_bid : Size.t
     ; resting_size_ask : Size.t

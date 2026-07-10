@@ -17,6 +17,7 @@ open Bonsai_term
     closed. *)
 val app
   :  events:Exchange_event.t Pipe.Reader.t
+  -> render_symbol:(Symbol_id.t -> string)
   -> exit:(unit -> unit Effect.t)
   -> dimensions:Dimensions.t Bonsai.t
   -> local_ Bonsai.graph

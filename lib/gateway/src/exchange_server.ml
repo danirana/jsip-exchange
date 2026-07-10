@@ -70,8 +70,19 @@ let start_matching_loop ~engine ~dispatcher ~metrics request_reader =
          Dispatcher.dispatch dispatcher events))
 ;;
 
-let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
+let start
+  ?market_data_budget
+  ?session_budget
+  ?audit_budget
+  ~directory
+  ~port
+  ()
   =
+  (* The directory is the authoritative symbol set: its ids are exactly the
+     books the engine trades, and its (name, id) pairs are what the directory
+     RPC serves. Everything downstream still speaks ids; only the RPC hands
+     out names. *)
+  let symbols = Symbol_directory.ids directory in
   let engine = Matching_engine.create symbols in
   let dispatcher =
     Dispatcher.create ?market_data_budget ?session_budget ?audit_budget ()
@@ -107,6 +118,10 @@ let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
             ignore state;
             Matching_engine.book engine symbol
             |> Option.map ~f:Order_book.snapshot)
+        ; Rpc.Rpc.implement'
+            Rpc_protocol.symbol_directory_rpc
+            (fun (_ : Connection_state.t) () ->
+               Symbol_directory.to_alist directory)
         ; Rpc.Pipe_rpc.implement
             Rpc_protocol.market_data_rpc
             (fun state symbols ->
@@ -145,8 +160,13 @@ let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
                      "Already logged in on this connection")
               | None ->
                 let participant = Participant.of_string name in
+                (* Intern the name to its stable server-side id and key the
+                   session table by that id. The name still round-trips back
+                   over the wire ([Ok participant]); the id stays
+                   server-side. *)
+                let id = Dispatcher.intern dispatcher participant in
                 let table = Dispatcher.sessions dispatcher in
-                if Hashtbl.mem table participant
+                if Hashtbl.mem table id
                 then
                   return
                     (Or_error.error_string
@@ -155,7 +175,7 @@ let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
                   let new_session =
                     Dispatcher.create_session dispatcher participant
                   in
-                  Hashtbl.set table ~key:participant ~data:new_session;
+                  Hashtbl.set table ~key:id ~data:new_session;
                   state.Connection_state.session <- Some new_session;
                   return (Ok participant))))
         ; Rpc.Rpc.implement
@@ -230,6 +250,8 @@ let start ?market_data_budget ?session_budget ?audit_budget ~symbols ~port ()
   let report_stats () =
     let gc = Gc.stat () in
     let book_depth =
+      (* [symbols] is now the list of traded ids, so the stats feed keys each
+         book_depth by that id directly. *)
       List.filter_map symbols ~f:(fun symbol ->
         Matching_engine.book engine symbol
         |> Option.map ~f:(fun book ->

@@ -64,7 +64,7 @@ let start_draining_exchange ~where_to_connect =
    exchange reports, priced around the current mid so its orders land near
    the touch instead of miles off-book. Empty until the first snapshot
    arrives. *)
-let market_seed () : (Symbol.t * int) list =
+let market_seed () : (Symbol_id.t * int) list =
   let { Protocol.Window.samples; _ } = !window in
   match List.last samples with
   | None -> []
@@ -88,7 +88,9 @@ let market_seed () : (Symbol.t * int) list =
 (* A single-symbol oracle process seeded near the live market, so the bot's
    [Context.fundamental] tracks a price close to the real touch. The tuning
    knobs mirror the scenarios' defaults. *)
-let make_oracle ~seed (seeds : (Symbol.t * int) list) : Fundamental_oracle.t =
+let make_oracle ~seed (seeds : (Symbol_id.t * int) list)
+  : Fundamental_oracle.t
+  =
   let symbol_config initial_price_cents
     : Fundamental_oracle.Config.symbol_config
     =
@@ -99,7 +101,7 @@ let make_oracle ~seed (seeds : (Symbol.t * int) list) : Fundamental_oracle.t =
     }
   in
   let config =
-    Symbol.Map.of_alist_exn
+    Symbol_id.Map.of_alist_exn
       (List.map seeds ~f:(fun (symbol, cents) -> symbol, symbol_config cents))
   in
   Fundamental_oracle.create config ~seed

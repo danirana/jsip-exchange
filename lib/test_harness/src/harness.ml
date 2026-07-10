@@ -5,9 +5,12 @@ open Jsip_gateway
 
 (* --- Constants --- *)
 
-let aapl = Symbol.of_string "AAPL"
-let tsla = Symbol.of_string "TSLA"
-let goog = Symbol.of_string "GOOG"
+(* Phase 1 speaks in ids, so the shared symbol constants are ids: [aapl] is
+   just symbol id 0, [tsla] id 1, [goog] id 2 — matching a default engine
+   created with [ aapl; tsla; goog ]. The names are mnemonic only. *)
+let aapl = Symbol_id.of_int 0
+let tsla = Symbol_id.of_int 1
+let goog = Symbol_id.of_int 2
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
 let charlie = Participant.of_string "Charlie"
@@ -172,14 +175,14 @@ let submit_quiet_ t request =
 
 let print_book t symbol =
   match Matching_engine.book t.engine symbol with
-  | None -> print_endline [%string "unknown symbol %{symbol#Symbol}"]
+  | None -> print_endline [%string "unknown symbol %{symbol#Symbol_id}"]
   | Some book -> Order_book.snapshot book |> Book.to_string |> print_endline
 ;;
 
 let print_bbo t symbol =
   match Matching_engine.book t.engine symbol with
-  | None -> print_endline [%string "BBO %{symbol#Symbol}: unknown symbol"]
+  | None -> print_endline [%string "BBO %{symbol#Symbol_id}: unknown symbol"]
   | Some book ->
     let bbo = Order_book.best_bid_offer book |> Bbo.to_string in
-    print_endline [%string "BBO %{symbol#Symbol}: %{bbo}"]
+    print_endline [%string "BBO %{symbol#Symbol_id}: %{bbo}"]
 ;;

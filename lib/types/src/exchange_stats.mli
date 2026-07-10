@@ -44,7 +44,7 @@ end
     across all price levels on each side. *)
 module Book_depth : sig
   type t =
-    { symbol : Symbol.t
+    { symbol : Symbol_id.t
     ; bbo : Bbo.t
     ; resting_size_bid : Size.t
     ; resting_size_ask : Size.t
